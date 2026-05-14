@@ -15,6 +15,8 @@ Multiple docks run in parallel against the same machine, each with:
 
 A **captain** Claude Code session (the one you're already talking to) orchestrates the docks. Workers run in their own Claude Code sessions, one per dock, with cctop + this plugin's Notification/Stop hooks surfacing "waiting for input" status back to the captain.
 
+The captain auto-observes worker docks: a `UserPromptSubmit` hook scans the shared inbox and injects new worker-question events into the captain's next prompt (one surface per event, per question). No polling needed — just type, and you'll see anything pending. `/docks` is still the on-demand status table.
+
 ## Skills
 
 | Skill | What it does |
@@ -123,12 +125,13 @@ ccdock-plugin-root/                          # this repo
 ├── .claude-plugin/marketplace.json
 └── plugins/ccdock/
     ├── .claude-plugin/plugin.json
-    ├── hooks/hooks.json                     # Notification + Stop
+    ├── hooks/hooks.json                     # Notification + Stop + UserPromptSubmit
     ├── skills/{dock,docks,undock,dock-dump}/SKILL.md
     └── scripts/
         ├── cli                              # thin Thor entrypoint
         ├── dump                             # bash, reads .dock.yml for project values
-        ├── notify                           # bash hook handler
+        ├── notify                           # bash hook — worker writes to inbox
+        ├── observer                         # bash hook — captain reads inbox, injects context
         └── lib/dock/
             ├── config.rb                    # discovers + parses .dock.yml
             ├── slug.rb                      # branch → slug derivation

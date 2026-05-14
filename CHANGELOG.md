@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Captain observer role: new `scripts/observer` bash script wired to the
+  `UserPromptSubmit` hook. On each captain prompt it scans
+  `~/.claude/docks/inbox/*.jsonl` for new `question` events (per-slug cursor
+  at `~/.claude/docks/captain-cursor.json`) and injects a
+  `<ccdock-worker-events>` block as additional prompt context. Worker
+  sessions self-exit. Idle/Stop events are not surfaced into context — they
+  stay visible via `/docks`.
+
 ## 0.1.0 — 2026-05-14
 
 Initial public release.

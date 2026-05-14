@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# UserPromptSubmit hook handler — gives the captain "observer" status over
+# worker docks. Scans ~/.claude/docks/inbox/*.jsonl for `question` events that
+# haven't been surfaced yet, and emits a tagged block on stdout. Claude Code
+# injects that stdout into the captain's next message as additional context.
+#
+# Worker sessions self-exit: a session running inside a workspace already has
+# its own .dock/slug marker, and shouldn't be flooded with other docks' inboxes.
+#
+# Only `question` events (Notification hook) are surfaced — `idle` events are
+# kept in the inbox for /docks but don't pollute captain context.
+#
+# Per-slug cursor lives at ~/.claude/docks/captain-cursor.json:
+#   {"sc-12345":"2026-05-14T12:00:00Z", "happy-otter":"2026-05-14T12:05:00Z"}
+# Each successful emit advances the slug's entry, so the same question is
+# surfaced at most once even if the captain ignores it.
+
+set -euo pipefail
+
+# Worker session — never observe.
+[ -f "$(pwd)/.dock/slug" ] && exit 0
+
+INBOX_DIR="$HOME/.claude/docks/inbox"
+[ -d "$INBOX_DIR" ] || exit 0
+
+shopt -s nullglob
+files=("$INBOX_DIR"/*.jsonl)
+[ ${#files[@]} -gt 0 ] || exit 0
+
+# Require jq — same dependency as notify. If jq is missing, fail silent rather
+# than break the captain's prompt.
+command -v jq >/dev/null 2>&1 || exit 0
+
+CURSOR_FILE="$HOME/.claude/docks/captain-cursor.json"
+mkdir -p "$(dirname "$CURSOR_FILE")"
+[ -f "$CURSOR_FILE" ] || echo '{}' > "$CURSOR_FILE"
+
+# Load cursor; tolerate corruption by resetting to {}.
+cursor=$(jq -c '.' "$CURSOR_FILE" 2>/dev/null || echo '{}')
+[ -n "$cursor" ] || cursor='{}'
+
+new_events=""
+count=0
+
+for f in "${files[@]}"; do
+  slug=$(basename "$f" .jsonl)
+  # Slug discipline mirrors Slug::SLUG_CHARS (and `notify`'s own guard).
+  case "$slug" in
+    *[!a-z0-9-]*) continue ;;
+    -*|*-)        continue ;;
+    '')           continue ;;
+  esac
+  [ "${#slug}" -le 63 ] || continue
+
+  # Last `question` event (latest the worker is blocked on).
+  q_line=$(grep '"event":"question"' "$f" 2>/dev/null | tail -n1 || true)
+  [ -n "$q_line" ] || continue
+
+  q_ts=$(printf '%s' "$q_line" | jq -r '.ts // empty' 2>/dev/null || true)
+  q_msg=$(printf '%s' "$q_line" | jq -r '.message // empty' 2>/dev/null || true)
+  [ -n "$q_ts" ] || continue
+
+  last_seen=$(printf '%s' "$cursor" | jq -r --arg s "$slug" '.[$s] // empty')
+  if [ "$q_ts" = "$last_seen" ]; then
+    continue
+  fi
+
+  # Newest event wins — emit and advance cursor.
+  if [ -z "$q_msg" ]; then
+    new_events+="  ${slug} (${q_ts})"$'\n'
+  else
+    new_events+="  ${slug} (${q_ts}): ${q_msg}"$'\n'
+  fi
+  count=$((count + 1))
+  cursor=$(printf '%s' "$cursor" | jq -c --arg s "$slug" --arg t "$q_ts" '.[$s] = $t')
+done
+
+# Always persist the (possibly-unchanged) cursor so a future run starts clean.
+printf '%s\n' "$cursor" > "$CURSOR_FILE"
+
+if [ "$count" -gt 0 ]; then
+  printf '<ccdock-worker-events count="%d">\n%s</ccdock-worker-events>\n' \
+    "$count" "$new_events"
+fi
+
+exit 0

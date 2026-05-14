@@ -26,6 +26,17 @@ Status sources:
 - **Active docks:** identified by intersecting `docker compose ls` (Docker daemon truth) with the set of compose projects whose workspace dir has a `.dock/metadata.json` marker.
 - **question/idle:** last event in `~/.claude/docks/inbox/<slug>.jsonl` written by the worker's Notification/Stop hook. `—` means no inbox file yet.
 
+## Captain observer (automatic)
+
+Each prompt the captain submits triggers a `UserPromptSubmit` hook that scans
+the inbox for **new `question` events** (one per worker) since the last
+surface, and injects a `<ccdock-worker-events>` block into the captain's
+context. The block lists slug + timestamp + the worker's question message.
+
+Cursor lives at `~/.claude/docks/captain-cursor.json`; each surfaced question
+is recorded so it is shown at most once. `idle`/Stop events stay in the inbox
+for `/docks` but are not injected — they would otherwise spam every prompt.
+
 ## When to suggest running this
 
 - User asks "what docks are running"
