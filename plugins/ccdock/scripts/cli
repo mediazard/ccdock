@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Thin entrypoint. All logic lives in lib/dock/. Dispatches to command classes.
+
+require 'thor'
+
+$LOAD_PATH.unshift(File.expand_path('lib', __dir__))
+require 'dock'
+
+module Dock
+  class CLI < Thor
+    def self.exit_on_failure? = true
+
+    desc 'start INPUT', 'Create a dock workspace from a branch path, ticket ID, or free-form description'
+    method_option :description, type: :string, default: nil, desc: 'Free-form description stored in metadata'
+    def start(input)
+      Dock::Commands::Start.new.call(input, description: options[:description])
+    end
+
+    desc 'list', 'List active docks'
+    def list
+      Dock::Commands::List.new.call
+    end
+
+    desc 'destroy SLUG', 'Tear down a dock — removes containers, volumes, Caddy route, inbox'
+    def destroy(slug)
+      Dock::Commands::Destroy.new.call(slug)
+    end
+
+    desc 'version', 'Print the ccdock plugin version'
+    def version
+      puts Dock::VERSION
+    end
+  end
+end
+
+Dock::CLI.start(ARGV)

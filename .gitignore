@@ -1,0 +1,11 @@
+.DS_Store
+*.swp
+*.gem
+tmp/
+.bundle/
+.idea/
+.vscode/
+node_modules/
+.ruby-lsp/
+Gemfile.lock
+plugins/ccdock/Gemfile.lock

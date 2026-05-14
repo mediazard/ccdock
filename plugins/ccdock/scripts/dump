@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Pre-generate the DB dump that /dock uses to seed new workspaces.
+#
+# Run from any directory inside a project that has a .dock.yml at its root.
+# Reads project_name, db_name, db_user, db_service, dump_path from config.
+#
+# pg_dump uses --no-owner --no-acl so the restore into a fresh workspace's
+# postgres (no app_users / production roles) succeeds.
+set -euo pipefail
+
+# Locate plugin's lib via the script's own path. Allows reading config without
+# needing the cli's full Ruby toolchain — we shell out to one short Ruby call.
+PLUGIN_LIB="$(cd "$(dirname "$0")/lib" && pwd)"
+
+# Walk up from cwd to find .dock.yml; emit one shell line per config key.
+eval "$(ruby -I"$PLUGIN_LIB" -e "
+require 'dock'
+cfg = Dock::Config.load
+puts %Q[PROJECT_ROOT=#{cfg.project_root.shellescape}]
+puts %Q[DB_NAME=#{cfg.db_name.shellescape}]
+puts %Q[DB_USER=#{cfg.db_user.shellescape}]
+puts %Q[DB_SERVICE=#{cfg.db_service.shellescape}]
+puts %Q[DUMP_PATH=#{cfg.dump_path.shellescape}]
+puts %Q[PROJECT_NAME=#{cfg.project_name.shellescape}]
+")"
+
+cd "$PROJECT_ROOT"
+mkdir -p "$(dirname "$DUMP_PATH")"
+
+# Refuse if main's compose stack isn't running with postgres healthy.
+# `docker compose ps` emits JSONLINES — `jq -s` slurps into an array for `.[0]`.
+if ! docker compose ps "$DB_SERVICE" --status running --format json \
+     | jq -se '.[0].Service' >/dev/null 2>&1; then
+  echo "ERROR: main's '$DB_SERVICE' service isn't running for project '$PROJECT_NAME'." >&2
+  echo "       Start it with 'make services' or 'make up' first." >&2
+  exit 1
+fi
+
+echo "==> Dumping $DB_NAME from project '$PROJECT_NAME'..."
+START=$(date +%s)
+# --no-owner / --no-acl strip ALTER TABLE OWNER + GRANT statements that reference
+# production roles. Workspaces use the default postgres superuser and don't need
+# to reproduce the access-control model.
+docker compose exec -T "$DB_SERVICE" \
+  pg_dump --no-owner --no-acl -U "$DB_USER" "$DB_NAME" | gzip > "$DUMP_PATH"
+END=$(date +%s)
+SIZE=$(du -h "$DUMP_PATH" | cut -f1)
+echo "==> Done in $((END - START))s — $DUMP_PATH ($SIZE)"

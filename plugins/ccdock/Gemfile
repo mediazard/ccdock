@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+# Runtime dependencies for the ccdock plugin's Ruby CLI. Pinning lets us audit
+# supply chain — Thor is the only runtime gem, and the cli script will work
+# against the system Ruby + system Thor if you'd rather not bundle.
+source 'https://rubygems.org'
+
+gem 'thor', '~> 1.3'
+
+group :development, :test do
+  gem 'minitest', '~> 5.0'
+  gem 'mocha', '~> 2.0'
+  gem 'webmock', '~> 3.0'
+end

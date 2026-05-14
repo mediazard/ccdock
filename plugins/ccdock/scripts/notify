@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Called by Claude Code's Notification and Stop hooks.
+# Reads JSON hook event on stdin, appends to ~/.claude/docks/inbox/<slug>.jsonl.
+#
+# Bail-out: identifies whether the current cwd is a dock workspace by checking
+# for a .dock/slug marker file (written at dock setup). NO project-specific
+# literals — works for any project that adopts ccdock.
+set -euo pipefail
+
+HOOK="${1:-unknown}"
+
+# Bail if cwd is not a dock workspace. The marker file is written by Start command.
+SLUG_FILE="$(pwd)/.dock/slug"
+[ -f "$SLUG_FILE" ] || exit 0
+# Read only first line, strip whitespace. Defense in depth: even if the marker
+# file is hand-edited, we never use a value that isn't a strict slug.
+SLUG=$(head -n1 "$SLUG_FILE" 2>/dev/null | tr -d '[:space:]')
+[ -n "$SLUG" ] || exit 0
+
+# Validate slug shape — must match the same pattern Slug::SLUG_CHARS enforces
+# in Ruby. Without this, a malicious or corrupt .dock/slug could write inbox
+# files at attacker-chosen paths under $HOME (path traversal).
+case "$SLUG" in
+  *[!a-z0-9-]*) exit 0 ;;
+  -*|*-) exit 0 ;;
+  '') exit 0 ;;
+esac
+# Length cap — keep parity with Ruby (≤63 chars).
+if [ "${#SLUG}" -gt 63 ]; then
+  exit 0
+fi
+
+# Buffer stdin — hook context as JSON, per Claude Code's hook contract.
+JSON=$(cat 2>/dev/null || echo '{}')
+
+INBOX_DIR="$HOME/.claude/docks/inbox"
+mkdir -p "$INBOX_DIR"
+INBOX="$INBOX_DIR/$SLUG.jsonl"
+
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+MSG=$(echo "$JSON" | jq -r '.message // ""' 2>/dev/null || echo '')
+EVENT='idle'
+[ "$HOOK" = 'Notification' ] && EVENT='question'
+
+jq -nc \
+  --arg ts "$TS" \
+  --arg slug "$SLUG" \
+  --arg event "$EVENT" \
+  --arg hook "$HOOK" \
+  --arg msg "$MSG" \
+  '{ts:$ts, slug:$slug, event:$event, hook:$hook, message:$msg}' \
+  >> "$INBOX"
+
+exit 0

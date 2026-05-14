@@ -1,0 +1,50 @@
+# .dock.yml — place this at your project root to adopt ccdock.
+# Walks up from cwd looking for it; first match wins.
+#
+# Required keys: project_name, base_host, image_name, db_name
+
+# The docker compose project name your project uses for main.
+# Typically the project's directory basename.
+project_name: my-app
+
+# Base host for Caddy routing. Workspaces become <slug>-<base_host>.
+# Example: base_host=dev.localhost → workspace at sc-12345-dev.localhost.
+base_host: dev.localhost
+
+# Rails-side PROJECT_NAME (used in env var, not in Docker). Defaults to project_name.
+# In a workspace, this becomes "<slug>-<base_project>".
+base_project: my-app
+
+# Docker image name (what your build tags). Workspaces can override the tag
+# at runtime if your compose file references e.g. ${IMAGE_TAG:-latest}.
+image_name: my-app
+
+# Database to dump and restore.
+db_name: my_app_development
+db_user: postgres
+db_service: postgres
+
+# Where the pre-generated dump file lives, relative to project root.
+dump_path: tmp/dock-dump.sql.gz
+
+# Where workspaces are created. Defaults to "<project_name>.worktrees" (sibling of project root).
+# worktree_dir: my-app.worktrees
+
+# Source Docker volume to clone into each workspace's node_modules.
+# Defaults to "<project_name>_node_modules" (compose's auto-prefixed name for main).
+# node_modules_source: my-app_node_modules
+
+# Slugs that destroy refuses to operate on (defensive). project_name and base_project
+# are auto-added.
+reserved_slugs:
+  - main
+  - default
+
+# If true, the dock setup script sets DEVCADDY=0 in the workspace .env and strips
+# any inherited DEVCADDY=1 from .env.local. Use for projects that auto-register
+# their own Caddy routes on boot via a DEVCADDY env var (conflict with our wildcard).
+disable_devcaddy_in_workspace: true
+
+# Where worker Notification/Stop hooks write their JSONL inbox files.
+# Default: ~/.claude/docks/inbox
+# inbox_dir: ~/.claude/docks/inbox

@@ -1,0 +1,9 @@
+{
+  "name": "ccdock",
+  "description": "Parallel Docker workspaces. Each dock is a git/jj worktree + isolated compose stack + Caddy wildcard route. Captain skills (/dock, /docks, /undock) orchestrate workspaces from a single Claude Code session.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Illya Havrylov"
+  },
+  "license": "MIT"
+}
