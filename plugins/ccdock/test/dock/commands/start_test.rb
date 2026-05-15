@@ -39,7 +39,7 @@ class Dock::Commands::StartTest < Minitest::Test
       # Stub the raw `system` (createdb) + the shell-free dump pipeline.
       cmd = Dock::Commands::Start.new(config: config)
       cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline).returns(true)
+      cmd.stubs(:run_dump_pipeline!).returns(nil)
 
       capture_io { cmd.call('sc-1', description: 'fix it') }
 
@@ -78,10 +78,72 @@ class Dock::Commands::StartTest < Minitest::Test
 
       cmd = Dock::Commands::Start.new(config: config)
       cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline).returns(true)
+      cmd.stubs(:run_dump_pipeline!).returns(nil)
 
       _, err = capture_subprocess_io_with_exit { cmd.call('sc-1') }
       assert_match(/Could not resolve web port/, err)
+    end
+  end
+
+  def test_clone_named_volumes_iterates_clone_volumes_config
+    with_dock_config(clone_volumes: %w[node_modules bundle_cache]) do |config|
+      FileUtils.mkdir_p(File.dirname(config.dump_path))
+      File.write(config.dump_path, 'gz-bytes')
+
+      Dock::Workspace.stubs(:already_present?).returns(false)
+      Dock::Workspace.stubs(:create).with do |path|
+        FileUtils.mkdir_p(path)
+        true
+      end
+      Dock::Docker.stubs(:compose).returns(nil)
+      Dock::Docker.stubs(:service_status).returns({ 'Health' => 'healthy' })
+      Dock::Docker.stubs(:published_port).returns(49_162)
+      Dock::Caddy.stubs(:register_wildcard).returns('ws-sc-1')
+
+      clone_calls = []
+      Dock::Docker.stubs(:try_clone_volume).with do |**kwargs|
+        clone_calls << kwargs
+        true
+      end
+
+      cmd = Dock::Commands::Start.new(config: config)
+      cmd.stubs(:system).returns(true)
+      cmd.stubs(:run_dump_pipeline!).returns(nil)
+
+      capture_io { cmd.call('sc-1') }
+
+      assert_equal(
+        [
+          { from: 'demoapp_node_modules', to: 'sc-1_node_modules' },
+          { from: 'demoapp_bundle_cache', to: 'sc-1_bundle_cache' }
+        ],
+        clone_calls
+      )
+    end
+  end
+
+  def test_clone_named_volumes_is_a_noop_when_clone_volumes_is_empty
+    with_dock_config do |config| # default clone_volumes: []
+      FileUtils.mkdir_p(File.dirname(config.dump_path))
+      File.write(config.dump_path, 'gz-bytes')
+
+      Dock::Workspace.stubs(:already_present?).returns(false)
+      Dock::Workspace.stubs(:create).with do |path|
+        FileUtils.mkdir_p(path)
+        true
+      end
+      Dock::Docker.stubs(:compose).returns(nil)
+      Dock::Docker.stubs(:service_status).returns({ 'Health' => 'healthy' })
+      Dock::Docker.stubs(:published_port).returns(49_162)
+      Dock::Caddy.stubs(:register_wildcard).returns('ws-sc-1')
+
+      Dock::Docker.expects(:try_clone_volume).never
+
+      cmd = Dock::Commands::Start.new(config: config)
+      cmd.stubs(:system).returns(true)
+      cmd.stubs(:run_dump_pipeline!).returns(nil)
+
+      capture_io { cmd.call('sc-1') }
     end
   end
 

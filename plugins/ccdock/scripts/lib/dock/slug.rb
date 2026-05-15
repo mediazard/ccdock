@@ -17,7 +17,7 @@ module Dock
     TICKET_PATTERN = /\b(sc-\d+)\b/i
     SLUG_CHARS = /\A[a-z0-9][a-z0-9-]{0,62}\z/
 
-    InvalidSlugError = Class.new(Dock::Error)
+    class InvalidSlugError < Dock::Error; end
 
     module_function
 

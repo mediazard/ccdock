@@ -76,6 +76,28 @@ class Dock::Commands::DestroyTest < Minitest::Test
     end
   end
 
+  def test_removes_each_clone_volume_when_configured
+    with_dock_config(clone_volumes: %w[node_modules bundle_cache]) do |config|
+      slug = 'sc-1'
+      build_valid_workspace(config, slug)
+      Dock::Docker.stubs(:project_volumes).returns(["#{slug}_postgres"])
+      Dock::Docker.stubs(:compose)
+      Dock::Caddy.stubs(:delete_route)
+      Dock::Inbox.stubs(:remove)
+
+      removed = []
+      cmd = Dock::Commands::Destroy.new(config: config)
+      cmd.stubs(:system).with do |*args|
+        # Only capture `docker volume rm <name>` calls; ignore unrelated ones.
+        removed << args[3] if args[0..2] == %w[docker volume rm]
+        true
+      end
+
+      capture_io { cmd.call(slug) }
+      assert_equal %w[sc-1_node_modules sc-1_bundle_cache], removed
+    end
+  end
+
   def test_happy_path_runs_full_teardown_pipeline
     with_dock_config do |config|
       slug = 'sc-1'
@@ -89,7 +111,9 @@ class Dock::Commands::DestroyTest < Minitest::Test
         true
       end
 
-      # `docker volume rm <slug>_node_modules` is a raw system call inside destroy.rb.
+      # `docker volume rm <slug>_<basename>` per clone_volumes entry is a raw
+      # system call inside destroy.rb. Default clone_volumes is [], so no system
+      # calls fire in this happy path — but we still stub to capture any leakage.
       cmd = Dock::Commands::Destroy.new(config: config)
       cmd.stubs(:system).returns(true)
 

@@ -18,7 +18,6 @@ setup() {
   cat > "$PROJECT/.dock.yml" <<EOF
 project_name: demoapp
 base_host: dev.localhost
-image_name: demoapp
 db_name: demoapp_development
 db_user: postgres
 db_service: postgres

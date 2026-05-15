@@ -5,7 +5,7 @@ description: Create a new dock — an isolated, parallel Docker workspace for th
 
 # /dock — Spawn a new dock workspace
 
-Creates a parallel, isolated Docker stack of the current project (defined by `.dock.yml` at the project root). Each dock gets its own Postgres, Redis, node_modules, and a Caddy wildcard route at `*.<slug>-<base_host>`.
+Creates a parallel, isolated Docker stack of the current project (defined by `.dock.yml` at the project root). Each dock gets its own Postgres, Redis, scoped named volumes, and a Caddy wildcard route at `*.<slug>-<base_host>`.
 
 ## Usage
 
@@ -24,7 +24,7 @@ If the slug already exists, a numeric suffix is appended (`sc-12345-1`, `sc-1234
 3. Copies `.env`, `.env.local`, `.bundle`, `.claude/settings.local.json` from the project root.
 4. Sed-modifies the copied env files for workspace identity (COMPOSE_PROJECT_NAME, HOST_DOMAIN, dynamic ports).
 5. Brings up postgres + redis, restores the dump.
-6. Clones the configured `node_modules_source` volume.
+6. Clones any volumes listed in `clone_volumes` (empty by default — relies on the image build).
 7. Brings up web + worker — entrypoint runs `db:prepare` automatically to apply any pending migrations against the restored schema.
 8. Polls web health.
 9. Registers a Caddy wildcard route at `*.<slug>-<base_host>`.
@@ -43,7 +43,7 @@ After the script returns, show the user the URL and how to open the worker.
 ## Pre-requirements
 
 - A `.dock.yml` at the project root.
-- The project's main compose stack must have been run once (so the source `node_modules` Docker volume exists, otherwise pnpm install runs on first up).
+- If `clone_volumes:` is configured, the source volumes must exist on the Docker daemon (e.g. main's compose stack has been brought up once so compose auto-created its named volumes). If a source volume is absent, the clone is a no-op and the workspace gets an empty volume — the image build (or first-run install) populates it.
 - Caddy must be running on host with admin API at `localhost:2019` (project's responsibility).
 - `tmp/dock-dump.sql.gz` (or configured `dump_path`) must exist — run `/dock-dump` if not.
 

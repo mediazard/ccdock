@@ -33,9 +33,12 @@ module Dock
         guard_volumes!(slug)
 
         Docker.compose(project: slug, args: %w[down -v])
-        # node_modules volume is created outside compose by Docker.clone_volume,
-        # so `compose down -v` won't catch it. Remove explicitly.
-        system('docker', 'volume', 'rm', "#{slug}_node_modules", out: File::NULL, err: File::NULL)
+        # Volumes cloned by Start#clone_named_volumes are created outside compose
+        # (raw `docker volume create`), so `compose down -v` doesn't catch them.
+        # Remove each one explicitly. No-ops cleanly if a volume never existed.
+        @config.clone_volumes.each do |basename|
+          system('docker', 'volume', 'rm', "#{slug}_#{basename}", out: File::NULL, err: File::NULL)
+        end
 
         Caddy.delete_route(slug: slug)
         Inbox.remove(slug: slug, config: @config)
@@ -47,7 +50,7 @@ module Dock
       private
 
       def refuse_reserved!(slug)
-        reserved = @config.reserved_slugs + [@config.project_name, @config.base_project]
+        reserved = (@config.reserved_slugs + [@config.project_name, @config.base_project]).compact
         return unless reserved.include?(slug)
 
         abort_with "Refusing: '#{slug}' is reserved (main project name or in reserved_slugs)."

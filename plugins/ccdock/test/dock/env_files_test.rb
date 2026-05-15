@@ -3,31 +3,36 @@
 require_relative '../test_helper'
 
 class Dock::EnvFilesTest < Minitest::Test
-  def test_apply_to_env_replaces_existing_project_name_line
-    with_dock_config do |config|
-      ws = make_workspace(config, 'sc-1', files: { '.env' => "PROJECT_NAME=\"demoapp\"\nFOO=bar\n" })
+  def test_apply_to_env_writes_project_name_only_when_base_project_set
+    # PROJECT_NAME / WORKROOM_NAME are Rails-ish opt-ins, gated on base_project.
+    with_dock_config(base_project: 'myrails') do |config|
+      ws = make_workspace(config, 'sc-1', files: { '.env' => "PROJECT_NAME=\"old\"\nFOO=bar\n" })
       Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
       content = File.read(File.join(ws, '.env'))
-      assert_includes content, 'PROJECT_NAME="sc-1-demoapp"'
+      assert_includes content, 'PROJECT_NAME="sc-1-myrails"'
+      assert_match(/^WORKROOM_NAME=sc-1$/, content)
       assert_includes content, 'FOO=bar', '.env should preserve unrelated keys'
     end
   end
 
+  def test_apply_to_env_does_not_write_project_name_when_base_project_unset
+    with_dock_config do |config|
+      ws = make_workspace(config, 'sc-1', files: { '.env' => "FOO=bar\n" })
+      Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
+      content = File.read(File.join(ws, '.env'))
+      refute_match(/^PROJECT_NAME=/, content, 'PROJECT_NAME stays absent without base_project')
+      refute_match(/^WORKROOM_NAME=/, content, 'WORKROOM_NAME stays absent without base_project')
+    end
+  end
+
   def test_apply_to_env_appends_compose_project_name_when_absent
+    # COMPOSE_PROJECT_NAME is always written — it's core compose namespacing,
+    # not Rails-specific.
     with_dock_config do |config|
       ws = make_workspace(config, 'sc-1', files: { '.env' => "FOO=bar\n" })
       Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
       content = File.read(File.join(ws, '.env'))
       assert_match(/^COMPOSE_PROJECT_NAME=sc-1$/, content)
-    end
-  end
-
-  def test_apply_to_env_appends_workroom_name
-    with_dock_config do |config|
-      ws = make_workspace(config, 'sc-1', files: { '.env' => '' })
-      Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
-      content = File.read(File.join(ws, '.env'))
-      assert_match(/^WORKROOM_NAME=sc-1$/, content)
     end
   end
 
@@ -64,13 +69,26 @@ class Dock::EnvFilesTest < Minitest::Test
     end
   end
 
-  def test_apply_to_env_local_sets_dynamic_ports_to_zero
+  def test_port_overrides_land_in_env_not_env_local
+    # .env is what compose auto-loads for variable substitution like ${WEB_PORT:-3000}.
+    # .env.local is loaded via env_file: into container env only and DOES NOT reach
+    # substitution. Port overrides must land in .env to take effect.
     with_dock_config do |config|
-      ws = make_workspace(config, 'sc-1', files: { '.env.local' => '' })
+      ws = make_workspace(
+        config, 'sc-1',
+        files: { '.env' => '', '.env.local' => "POSTGRES_PORT=5432\nREDIS_PORT=6379\nWEB_PORT=3000\n" }
+      )
       Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
-      content = File.read(File.join(ws, '.env.local'))
-      assert_match(/^POSTGRES_PORT=0$/, content)
-      assert_match(/^REDIS_PORT=0$/, content)
+      env_content = File.read(File.join(ws, '.env'))
+      env_local_content = File.read(File.join(ws, '.env.local'))
+
+      assert_match(/^POSTGRES_PORT=0$/, env_content, '.env should pin POSTGRES_PORT=0')
+      assert_match(/^REDIS_PORT=0$/, env_content,    '.env should pin REDIS_PORT=0')
+      assert_match(/^WEB_PORT=0$/, env_content,      '.env should pin WEB_PORT=0')
+
+      refute_match(/^POSTGRES_PORT=/, env_local_content, 'inherited port pins must be stripped from .env.local')
+      refute_match(/^REDIS_PORT=/, env_local_content)
+      refute_match(/^WEB_PORT=/, env_local_content)
     end
   end
 
