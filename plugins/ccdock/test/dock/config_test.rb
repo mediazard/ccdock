@@ -7,7 +7,6 @@ class Dock::ConfigTest < Minitest::Test
     with_dock_config do |config, dir|
       assert_equal 'demoapp', config.project_name
       assert_equal 'dev.localhost', config.base_host
-      assert_equal 'demoapp', config.image_name
       assert_equal 'demoapp_development', config.db_name
       assert_equal dir, config.project_root
     end
@@ -30,21 +29,32 @@ class Dock::ConfigTest < Minitest::Test
       end
       assert_match(/missing required keys/, error.message)
       assert_match(/base_host/, error.message)
-      assert_match(/image_name/, error.message)
       assert_match(/db_name/, error.message)
     end
   end
 
-  def test_derived_defaults_fall_back_to_project_name
+  def test_image_name_is_no_longer_required_or_exposed
+    # image_name was a v0.1.0 required key that was never read by any code.
+    # v0.2.0 drops it from REQUIRED_KEYS and removes the accessor.
+    refute_includes Dock::Config::REQUIRED_KEYS, 'image_name'
+  end
+
+  def test_derived_defaults
     # Bypass with_dock_config's worktree_dir injection — we want the *raw* defaults.
     Dir.mktmpdir('ccdock-test-defaults-') do |dir|
       project_dir = File.join(dir, 'project')
       FileUtils.mkdir_p(project_dir)
       File.write(File.join(project_dir, '.dock.yml'), YAML.dump(DockTestHelpers::DEFAULT_CONFIG))
       config = Dock::Config.load(starting_path: project_dir)
-      assert_equal 'demoapp', config.base_project, 'base_project defaults to project_name'
+      assert_nil config.base_project, 'base_project is nil unless explicitly set'
       assert_equal 'demoapp.worktrees', File.basename(config.worktree_dir_path)
-      assert_equal 'demoapp_node_modules', config.node_modules_source
+      assert_equal [], config.clone_volumes, 'clone_volumes defaults to empty (generic-first)'
+    end
+  end
+
+  def test_base_project_is_returned_verbatim_when_set
+    with_dock_config(base_project: 'my-rails-app') do |config|
+      assert_equal 'my-rails-app', config.base_project
     end
   end
 
@@ -56,21 +66,28 @@ class Dock::ConfigTest < Minitest::Test
     end
   end
 
-  def test_custom_node_modules_source_override_is_respected
-    with_dock_config(node_modules_source: 'shared_node_modules') do |config|
-      assert_equal 'shared_node_modules', config.node_modules_source
+  def test_clone_volumes_returns_array_of_basenames
+    with_dock_config(clone_volumes: %w[node_modules bundle_cache]) do |config|
+      assert_equal %w[node_modules bundle_cache], config.clone_volumes
     end
   end
 
-  def test_disable_devcaddy_default_is_true
+  def test_clone_volumes_rejects_empty_strings_and_coerces_to_string
+    with_dock_config(clone_volumes: ['node_modules', '', nil]) do |config|
+      assert_equal ['node_modules'], config.clone_volumes
+    end
+  end
+
+  def test_disable_devcaddy_default_is_false
+    # Generic-first: Rails-specific niceties are opt-in.
     with_dock_config do |config|
-      assert config.disable_devcaddy_in_workspace?
+      refute config.disable_devcaddy_in_workspace?
     end
   end
 
-  def test_disable_devcaddy_can_be_overridden_to_false
-    with_dock_config(disable_devcaddy_in_workspace: false) do |config|
-      refute config.disable_devcaddy_in_workspace?
+  def test_disable_devcaddy_can_be_overridden_to_true
+    with_dock_config(disable_devcaddy_in_workspace: true) do |config|
+      assert config.disable_devcaddy_in_workspace?
     end
   end
 

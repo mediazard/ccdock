@@ -10,7 +10,7 @@ Multiple docks run in parallel against the same machine, each with:
 
 - Own `COMPOSE_PROJECT_NAME` → own containers/networks/volumes (auto-namespaced)
 - Own restored DB (from a pre-generated dump of main's data)
-- Own cloned `node_modules` volume
+- Own scoped named volumes (optional: clone selected named volumes from main via `clone_volumes:` for warm-start speed)
 - Wildcard Caddy route at `*.<slug>-<base_host>` → unique per-workspace dynamic web port
 
 A **captain** Claude Code session (the one you're already talking to) orchestrates the docks. Workers run in their own Claude Code sessions, one per dock, with cctop + this plugin's Notification/Stop hooks surfacing "waiting for input" status back to the captain.
@@ -90,21 +90,42 @@ The plugin shells out to these — install them once per machine:
 
 ## Adopting in a project
 
-Place a `.dock.yml` at your project root. See `.dock.example.yml` for the full schema:
+Place a `.dock.yml` at your project root. The minimum is three keys; everything else has sensible generic defaults (see `.dock.example.yml` for the full schema).
 
 ```yaml
-project_name: my-app
-base_host: dev.localhost
-image_name: my-app
-db_name: my_app_development
+project_name: my-app          # must match your main stack's COMPOSE_PROJECT_NAME
+base_host: dev.localhost      # workspaces reachable at *.<slug>-<base_host>
+db_name: my_app_development   # pg_dump source + restore target
 ```
 
-Your project's `docker-compose.yml` must support workspace parameterization:
+### Compose requirements
 
-- `ports: ["${WEB_PORT:-0}:3000"]` on the web service (dynamic ports for workspaces)
-- `image: my-app:${IMAGE_TAG_VAR:-latest}` (per-workspace image tags optional but useful for CI caching)
+Your project's `docker-compose.yml` must let ccdock-managed workspaces override two things at runtime:
 
-That's it. From inside your project run:
+```yaml
+services:
+  web:
+    ports:
+      - "${WEB_PORT:-0}:3000"           # dynamic host port in workspaces; main pins via .env (substitution source)
+    image: my-app:${IMAGE_TAG:-latest}  # optional: per-workspace image tags (useful for CI cache; defaults to :latest locally)
+    env_file:
+      - .env
+      - .env.local                       # MUST be loaded via env_file (not duplicated in `environment:`)
+```
+
+**Main keeps host port 3000 bound.** Set `WEB_PORT=3000` in main's **`.env`** — that's the file compose auto-loads for `${VAR}` substitution. `.env.local` is loaded via `env_file:` for container env only and does NOT reach compose's substitution layer, so a `WEB_PORT` there would silently have no effect on host port mapping. Workspaces leave the substitution unset (`WEB_PORT=0` written to workspace `.env`) → Docker assigns a dynamic port → ccdock registers a Caddy wildcard route at `*.<slug>-<base_host>` pointing at the dynamic port. Main's host:3000 binding is independent and stable.
+
+**If your project uses a Caddy-auto-registration gem** (e.g. `rails_caddy_dev`, which gates on `ENV.key?('DEVCADDY')`):
+
+- Set `DEVCADDY=1` in main's `.env.local`, NOT in compose's `environment:` block. Compose's `environment:` overrides `env_file:`, which would prevent ccdock from stripping the key in workspace containers.
+- Main's web container needs host:3000 stably bound (above). The gem's auto-route dials `:3000` on the host — that has to be main's web.
+- Keep `disable_devcaddy_in_workspace: true` in `.dock.yml` (the default). ccdock strips `DEVCADDY` from each workspace's `.env` + `.env.local` so the gem doesn't load there and doesn't register a competing route.
+
+**If your project does NOT use a Caddy-auto-registration gem,** you can ignore the `DEVCADDY` notes. ccdock's wildcard route registration is the only Caddy traffic for workspaces; main is configured however you normally configure it.
+
+### Quick start
+
+From inside your project run:
 
 ```
 /dock-dump            # one-time per fresh-data run

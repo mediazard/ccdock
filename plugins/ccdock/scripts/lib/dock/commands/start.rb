@@ -16,7 +16,7 @@ module Dock
     #   4. Copy inherited dotfiles (.env, .env.local, .bundle, .claude/settings.local.json)
     #   5. Sed-mutate env files (per Dock::EnvFiles)
     #   6. Bring up postgres + redis, restore dump
-    #   7. Clone node_modules volume (best-effort)
+    #   7. Clone configured named volumes from main (clone_volumes: best-effort, default empty)
     #   8. Bring up web + worker — entrypoint runs `db:prepare` automatically
     #   9. Poll web health
     #  10. Register Caddy wildcard route at *.<slug>-<base_host>
@@ -61,9 +61,20 @@ module Dock
         bring_up_data_services(slug)
         wait_for_postgres(slug)
         restore_dump(slug)
-        Docker.try_clone_volume(from: @config.node_modules_source, to: "#{slug}_node_modules")
+        clone_named_volumes(slug)
         bring_up_app_services(slug)
         wait_for_web(slug)
+      end
+
+      # Clone main's named volumes into <slug>_<name>. Empty list (default)
+      # means workspaces start with empty named volumes — relying on the image
+      # build (e.g. baked-in node_modules / vendored gems) for first-run state.
+      def clone_named_volumes(slug)
+        @config.clone_volumes.each do |basename|
+          source = "#{@config.project_name}_#{basename}"
+          target = "#{slug}_#{basename}"
+          Docker.try_clone_volume(from: source, to: target)
+        end
       end
 
       def resolve_web_port!(slug)
@@ -152,14 +163,14 @@ module Dock
           out: File::NULL, err: File::NULL
         )
 
-        abort_with "Dump restore failed for '#{slug}'" unless run_dump_pipeline(slug)
+        run_dump_pipeline!(slug)
       end
 
       # Stream gunzip -> docker compose exec psql via Open3.pipeline. All commands
       # are argv arrays — no shell, no quoting, no injection surface even if
       # dump_path / db_user / db_name ever contained shell metacharacters.
       # Extracted from #restore_dump so tests can stub it.
-      def run_dump_pipeline(slug)
+      def run_dump_pipeline!(slug)
         statuses = Open3.pipeline(
           ['gunzip', '-c', @config.dump_path],
           ['docker', 'compose', '-p', slug, 'exec', '-T', @config.db_service,
@@ -167,7 +178,9 @@ module Dock
            '-d', @config.db_name],
           out: File::NULL, err: File::NULL
         )
-        statuses.all?(&:success?)
+        return if statuses.all?(&:success?)
+
+        abort_with "Dump restore failed for '#{slug}'"
       end
 
       def write_workspace_state(workspace_path, slug:, web_port:, description:, input:)

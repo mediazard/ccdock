@@ -7,11 +7,11 @@
 # by walking up from cwd. No project name, host, or DB literal lives in this code.
 
 module Dock
-  Error = Class.new(StandardError)
-  ConfigNotFoundError = Class.new(Error)
-  ConfigInvalidError = Class.new(Error)
-  WorkspaceError = Class.new(Error)
-  CaddyError = Class.new(Error)
+  class Error < StandardError; end
+  class ConfigNotFoundError < Error; end
+  class ConfigInvalidError < Error; end
+  class WorkspaceError < Error; end
+  class CaddyError < Error; end
 end
 
 require_relative 'dock/version'

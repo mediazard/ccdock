@@ -12,22 +12,25 @@ module Dock
   # Adopting projects place a .dock.yml with at minimum:
   #   project_name: <main compose project name>
   #   base_host: <e.g. dev.localhost>
-  #   image_name: <docker image name>
   #   db_name: <database to dump/restore>
   #
-  # See .dock.example.yml for the full schema.
+  # Everything else is optional. Defaults assume nothing about the host
+  # project beyond "uses docker compose + postgres". Rails-specific niceties
+  # (PROJECT_NAME env var, DEVCADDY stripping, named-volume cloning from
+  # main into the workspace) are opt-in via dedicated keys — never on by
+  # default. See .dock.example.yml for the full schema.
   class Config
-    REQUIRED_KEYS = %w[project_name base_host image_name db_name].freeze
+    REQUIRED_KEYS = %w[project_name base_host db_name].freeze
 
     DEFAULTS = {
-      'base_project' => nil,            # defaults to project_name if unset
+      'base_project' => nil,            # optional Rails-ish PROJECT_NAME env-var prefix; nil → not written
       'db_user' => 'postgres',
       'db_service' => 'postgres',
       'dump_path' => 'tmp/dock-dump.sql.gz',
       'worktree_dir' => nil,            # defaults to "<project_name>.worktrees"
-      'node_modules_source' => nil,     # defaults to "<project_name>_node_modules"
+      'clone_volumes' => [],            # volume basenames to clone from main; empty → image's baked-in dirs
       'reserved_slugs' => [],
-      'disable_devcaddy_in_workspace' => true,
+      'disable_devcaddy_in_workspace' => false,
       'inbox_dir' => '~/.claude/docks/inbox'
     }.freeze
 
@@ -60,15 +63,18 @@ module Dock
 
     def project_name = fetch('project_name')
     def base_host = fetch('base_host')
-    def base_project = fetch('base_project')
-    def image_name = fetch('image_name')
+    # Optional: nil if not set. When set, EnvFiles writes PROJECT_NAME=<slug>-<base_project>.
+    def base_project = @raw['base_project']
     def db_name = fetch('db_name')
     def db_user = fetch('db_user')
     def db_service = fetch('db_service')
     def dump_path = File.join(@project_root, safe_relative('dump_path'))
     def worktree_dir = fetch('worktree_dir')
     def worktree_dir_path = File.expand_path("../#{safe_relative('worktree_dir')}", @project_root)
-    def node_modules_source = fetch('node_modules_source')
+    # Volume basenames to clone from main into a workspace. Compose auto-prefixes
+    # main's named volumes with COMPOSE_PROJECT_NAME (= project_name here), so a
+    # basename like "node_modules" resolves to <project_name>_node_modules → <slug>_node_modules.
+    def clone_volumes = Array(fetch('clone_volumes')).map(&:to_s).reject(&:empty?)
     def reserved_slugs = Array(fetch('reserved_slugs'))
     def disable_devcaddy_in_workspace? = fetch('disable_devcaddy_in_workspace') == true
     def inbox_dir = File.expand_path(fetch('inbox_dir'))
@@ -102,9 +108,7 @@ module Dock
       raise ConfigInvalidError, "#{key} must be a relative path, got #{value.inspect}" if value.start_with?('/')
 
       segments = value.split(File::SEPARATOR)
-      if segments.include?('..')
-        raise ConfigInvalidError, "#{key} may not contain '..' segments, got #{value.inspect}"
-      end
+      raise ConfigInvalidError, "#{key} may not contain '..' segments, got #{value.inspect}" if segments.include?('..')
 
       value
     end
@@ -118,9 +122,7 @@ module Dock
     end
 
     def apply_derived_defaults!
-      @raw['base_project'] ||= @raw['project_name']
       @raw['worktree_dir'] ||= "#{@raw['project_name']}.worktrees"
-      @raw['node_modules_source'] ||= "#{@raw['project_name']}_node_modules"
     end
   end
 end

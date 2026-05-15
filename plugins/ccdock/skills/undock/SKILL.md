@@ -19,7 +19,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cli destroy <slug>
 2. Refuses if slug is reserved (matches main project name, base project name, or anything in `reserved_slugs` from `.dock.yml`).
 3. Checks `docker volume ls --filter label=...` — refuses if any volume name doesn't start with `<slug>_` (protects against the destroy operating on main's volumes).
 4. `docker compose -p <slug> down -v` — stops containers, removes compose-scoped volumes.
-5. Removes the `<slug>_node_modules` volume (created outside compose, so `down -v` doesn't catch it).
+5. Removes each `<slug>_<basename>` volume listed in `clone_volumes` (these were created outside compose, so `down -v` doesn't catch them).
 6. Deletes the Caddy wildcard route by ID.
 7. Removes `~/.claude/docks/inbox/<slug>.jsonl`.
 8. Leaves the workspace directory at `<worktree_dir>/<slug>/` intact for review.

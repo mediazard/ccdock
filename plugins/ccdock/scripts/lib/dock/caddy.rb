@@ -50,22 +50,9 @@ module Dock
       id = route_id(slug)
       uri = URI("#{ADMIN_URL}/id/#{id}")
 
-      get_response = Net::HTTP.get_response(uri)
-      return unless get_response.is_a?(Net::HTTPSuccess)
+      return unless route_owned_by_us?(uri, id)
 
-      # Defense in depth: verify the route's @id matches our prefix before delete.
-      payload = JSON.parse(get_response.body)
-      actual_id = payload['@id']
-      unless actual_id.is_a?(String) && actual_id.start_with?(ROUTE_ID_PREFIX)
-        warn "Caddy route #{id} exists but @id (#{actual_id.inspect}) lacks expected prefix — refusing delete."
-        return
-      end
-
-      delete = Net::HTTP::Delete.new(uri.path)
-      response = Net::HTTP.new(uri.host, uri.port).request(delete)
-      return if response.is_a?(Net::HTTPSuccess)
-
-      warn "Failed to delete Caddy route #{id}: #{response.code} #{response.body}"
+      perform_delete(uri, id)
     rescue Errno::ECONNREFUSED
       warn 'Caddy admin API not reachable — skipping route deletion.'
     rescue JSON::ParserError
@@ -75,6 +62,30 @@ module Dock
     def route_id(slug)
       "#{ROUTE_ID_PREFIX}#{slug}"
     end
+
+    # GET the route by id and confirm Caddy actually owns one whose @id has our
+    # prefix. Returns true if safe to delete; false (with a warn) otherwise.
+    def route_owned_by_us?(uri, id)
+      get_response = Net::HTTP.get_response(uri)
+      return false unless get_response.is_a?(Net::HTTPSuccess)
+
+      payload = JSON.parse(get_response.body)
+      actual_id = payload['@id']
+      return true if actual_id.is_a?(String) && actual_id.start_with?(ROUTE_ID_PREFIX)
+
+      warn "Caddy route #{id} exists but @id (#{actual_id.inspect}) lacks expected prefix — refusing delete."
+      false
+    end
+    private_class_method :route_owned_by_us?
+
+    def perform_delete(uri, id)
+      delete = Net::HTTP::Delete.new(uri.path)
+      response = Net::HTTP.new(uri.host, uri.port).request(delete)
+      return if response.is_a?(Net::HTTPSuccess)
+
+      warn "Failed to delete Caddy route #{id}: #{response.code} #{response.body}"
+    end
+    private_class_method :perform_delete
 
     def post(uri, body)
       Net::HTTP.start(uri.host, uri.port) do |http|
