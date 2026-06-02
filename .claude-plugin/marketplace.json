@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Parallel Docker workspaces for compose-based projects, orchestrated from Claude Code",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "ccdock",
       "source": "./plugins/ccdock",
       "description": "Spawn isolated, parallel Docker workspaces for any compose-based project. Each dock gets its own DB, ports, and Caddy wildcard route.",
-      "version": "0.2.0"
+      "version": "0.3.0"
     }
   ]
 }

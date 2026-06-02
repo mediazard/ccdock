@@ -78,16 +78,40 @@ class Dock::ConfigTest < Minitest::Test
     end
   end
 
-  def test_disable_devcaddy_default_is_false
+  def test_disable_rails_caddy_dev_default_is_false
     # Generic-first: Rails-specific niceties are opt-in.
     with_dock_config do |config|
-      refute config.disable_devcaddy_in_workspace?
+      refute config.disable_rails_caddy_dev_in_workspace?
     end
   end
 
-  def test_disable_devcaddy_can_be_overridden_to_true
+  def test_disable_rails_caddy_dev_can_be_overridden_to_true
+    with_dock_config(disable_rails_caddy_dev_in_workspace: true) do |config|
+      assert config.disable_rails_caddy_dev_in_workspace?
+    end
+  end
+
+  def test_legacy_disable_devcaddy_key_still_enables_stripping
+    # Old .dock.yml files used disable_devcaddy_in_workspace before the gem
+    # renamed its gate var. The legacy key maps onto the current accessor.
     with_dock_config(disable_devcaddy_in_workspace: true) do |config|
-      assert config.disable_devcaddy_in_workspace?
+      assert config.disable_rails_caddy_dev_in_workspace?
+    end
+  end
+
+  def test_current_key_wins_over_legacy_alias_when_both_present
+    Dir.mktmpdir('ccdock-test-alias-') do |dir|
+      File.write(
+        File.join(dir, '.dock.yml'),
+        YAML.dump(
+          DockTestHelpers::DEFAULT_CONFIG.merge(
+            'disable_devcaddy_in_workspace' => true,
+            'disable_rails_caddy_dev_in_workspace' => false
+          )
+        )
+      )
+      config = Dock::Config.load(starting_path: dir)
+      refute config.disable_rails_caddy_dev_in_workspace?, 'current key must take precedence over legacy alias'
     end
   end
 

@@ -115,13 +115,13 @@ services:
 
 **Main keeps host port 3000 bound.** Set `WEB_PORT=3000` in main's **`.env`** — that's the file compose auto-loads for `${VAR}` substitution. `.env.local` is loaded via `env_file:` for container env only and does NOT reach compose's substitution layer, so a `WEB_PORT` there would silently have no effect on host port mapping. Workspaces leave the substitution unset (`WEB_PORT=0` written to workspace `.env`) → Docker assigns a dynamic port → ccdock registers a Caddy wildcard route at `*.<slug>-<base_host>` pointing at the dynamic port. Main's host:3000 binding is independent and stable.
 
-**If your project uses a Caddy-auto-registration gem** (e.g. `rails_caddy_dev`, which gates on `ENV.key?('DEVCADDY')`):
+**If your project uses a Caddy-auto-registration gem** (e.g. `rails_caddy_dev`, which gates on `ENV.key?('RAILS_CADDY_DEV')` — older versions used `ENV.key?('DEVCADDY')`):
 
-- Set `DEVCADDY=1` in main's `.env.local`, NOT in compose's `environment:` block. Compose's `environment:` overrides `env_file:`, which would prevent ccdock from stripping the key in workspace containers.
+- Set `RAILS_CADDY_DEV=1` in main's `.env.local`, NOT in compose's `environment:` block. Compose's `environment:` overrides `env_file:`, which would prevent ccdock from stripping the key in workspace containers.
 - Main's web container needs host:3000 stably bound (above). The gem's auto-route dials `:3000` on the host — that has to be main's web.
-- Keep `disable_devcaddy_in_workspace: true` in `.dock.yml` (the default). ccdock strips `DEVCADDY` from each workspace's `.env` + `.env.local` so the gem doesn't load there and doesn't register a competing route.
+- Set `disable_rails_caddy_dev_in_workspace: true` in `.dock.yml` (opt-in; default `false`). ccdock strips both `RAILS_CADDY_DEV` and the legacy `DEVCADDY` from each workspace's `.env` + `.env.local` so the gem doesn't load there and doesn't register a competing route. (The old key name `disable_devcaddy_in_workspace` still works as an alias.)
 
-**If your project does NOT use a Caddy-auto-registration gem,** you can ignore the `DEVCADDY` notes. ccdock's wildcard route registration is the only Caddy traffic for workspaces; main is configured however you normally configure it.
+**If your project does NOT use a Caddy-auto-registration gem,** you can ignore the `RAILS_CADDY_DEV` notes. ccdock's wildcard route registration is the only Caddy traffic for workspaces; main is configured however you normally configure it.
 
 ### Quick start
 

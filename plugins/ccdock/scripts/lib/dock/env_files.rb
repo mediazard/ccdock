@@ -37,10 +37,12 @@ module Dock
       content = replace_or_append(content, 'WEB_PORT', '0')
       content = replace_or_append(content, 'POSTGRES_PORT', '0')
       content = replace_or_append(content, 'REDIS_PORT', '0')
-      # Strip DEVCADDY entirely. Some Rails apps use `ENV.key?('DEVCADDY')` to gate
-      # Caddy auto-registration, which fires on ANY value (incl. "0"). The only safe
-      # way to disable it is to ensure the env var is not defined in the container.
-      content = strip_key(content, 'DEVCADDY') if config.disable_devcaddy_in_workspace?
+      # Strip the Caddy-gate env var entirely. Some Rails apps use
+      # `ENV.key?('RAILS_CADDY_DEV')` (older versions: `'DEVCADDY'`) to gate Caddy
+      # auto-registration, which fires on ANY value (incl. "0"). The only safe way
+      # to disable it is to ensure the env var is not defined in the container. We
+      # strip both names so adopters on either gem version are covered.
+      content = strip_rails_caddy_dev(content) if config.disable_rails_caddy_dev_in_workspace?
       File.write(path, content)
     end
 
@@ -55,8 +57,15 @@ module Dock
       content = strip_key(content, 'POSTGRES_PORT')
       content = strip_key(content, 'REDIS_PORT')
       content = strip_key(content, 'WEB_PORT')
-      content = strip_key(content, 'DEVCADDY') if config.disable_devcaddy_in_workspace?
+      content = strip_rails_caddy_dev(content) if config.disable_rails_caddy_dev_in_workspace?
       File.write(path, content)
+    end
+
+    # Strip both the current (RAILS_CADDY_DEV) and legacy (DEVCADDY) gate keys.
+    RAILS_CADDY_DEV_KEYS = %w[RAILS_CADDY_DEV DEVCADDY].freeze
+
+    def strip_rails_caddy_dev(content)
+      RAILS_CADDY_DEV_KEYS.reduce(content) { |acc, key| strip_key(acc, key) }
     end
 
     def strip_key(content, key)
