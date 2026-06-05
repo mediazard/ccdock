@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — 2026-06-02
+
+**`rails_caddy_dev` renamed its gate env var.** The latest `rails_caddy_dev`
+gates Caddy auto-registration on `ENV.key?('RAILS_CADDY_DEV')` instead of
+`ENV.key?('DEVCADDY')`. ccdock now follows suit.
+
+- Workspaces strip both `RAILS_CADDY_DEV` (new) and `DEVCADDY` (legacy) from
+  `.env` / `.env.local`, and both are cleaned from the inherited shell env
+  before compose runs. Adopters on either gem version are covered with no
+  config change.
+- Config key renamed `disable_devcaddy_in_workspace` → `disable_rails_caddy_dev_in_workspace`.
+  The old key still works as a backward-compatible alias; when both are set the
+  new key wins. No migration is required.
+- Docs (`README`, `.dock.example.yml`) updated to lead with `RAILS_CADDY_DEV`
+  and note the legacy fallback.
+
 ## 0.2.0 — 2026-05-15
 
 **Breaking — generic-first config.** London (the original ccdock user) was

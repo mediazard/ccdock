@@ -36,10 +36,21 @@ class Dock::EnvFilesTest < Minitest::Test
     end
   end
 
-  def test_apply_to_env_strips_devcaddy_when_disabled_in_workspace
-    # Rails apps gate Caddy on ENV.key?('DEVCADDY') — value-insensitive. The
-    # implementation removes the line entirely rather than writing DEVCADDY=0.
-    with_dock_config(disable_devcaddy_in_workspace: true) do |config|
+  def test_apply_to_env_strips_rails_caddy_dev_when_disabled_in_workspace
+    # Rails apps gate Caddy on ENV.key?('RAILS_CADDY_DEV') — value-insensitive.
+    # The implementation removes the line entirely rather than writing =0.
+    with_dock_config(disable_rails_caddy_dev_in_workspace: true) do |config|
+      ws = make_workspace(config, 'sc-1', files: { '.env' => "RAILS_CADDY_DEV=1\nFOO=bar\n" })
+      Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
+      content = File.read(File.join(ws, '.env'))
+      refute_match(/^RAILS_CADDY_DEV=/, content)
+      assert_includes content, 'FOO=bar'
+    end
+  end
+
+  def test_apply_to_env_strips_legacy_devcaddy_when_disabled_in_workspace
+    # Adopters on the older gem version still set DEVCADDY. We strip both names.
+    with_dock_config(disable_rails_caddy_dev_in_workspace: true) do |config|
       ws = make_workspace(config, 'sc-1', files: { '.env' => "DEVCADDY=1\nFOO=bar\n" })
       Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
       content = File.read(File.join(ws, '.env'))
@@ -48,11 +59,13 @@ class Dock::EnvFilesTest < Minitest::Test
     end
   end
 
-  def test_apply_to_env_preserves_devcaddy_when_disabled_flag_is_false
-    with_dock_config(disable_devcaddy_in_workspace: false) do |config|
-      ws = make_workspace(config, 'sc-1', files: { '.env' => "DEVCADDY=1\n" })
+  def test_apply_to_env_preserves_gate_vars_when_disabled_flag_is_false
+    with_dock_config(disable_rails_caddy_dev_in_workspace: false) do |config|
+      ws = make_workspace(config, 'sc-1', files: { '.env' => "RAILS_CADDY_DEV=1\nDEVCADDY=1\n" })
       Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
-      assert_match(/^DEVCADDY=1$/, File.read(File.join(ws, '.env')))
+      content = File.read(File.join(ws, '.env'))
+      assert_match(/^RAILS_CADDY_DEV=1$/, content)
+      assert_match(/^DEVCADDY=1$/, content)
     end
   end
 
@@ -92,14 +105,15 @@ class Dock::EnvFilesTest < Minitest::Test
     end
   end
 
-  def test_apply_to_env_local_strips_pre_existing_devcaddy
-    with_dock_config(disable_devcaddy_in_workspace: true) do |config|
+  def test_apply_to_env_local_strips_pre_existing_gate_vars
+    with_dock_config(disable_rails_caddy_dev_in_workspace: true) do |config|
       ws = make_workspace(
         config, 'sc-1',
-        files: { '.env.local' => "DEVCADDY=1\nFOO=bar\n" }
+        files: { '.env.local' => "RAILS_CADDY_DEV=1\nDEVCADDY=1\nFOO=bar\n" }
       )
       Dock::EnvFiles.apply(ws, slug: 'sc-1', config: config)
       content = File.read(File.join(ws, '.env.local'))
+      refute_match(/^RAILS_CADDY_DEV=/, content)
       refute_match(/^DEVCADDY=/, content)
       assert_includes content, 'FOO=bar'
     end

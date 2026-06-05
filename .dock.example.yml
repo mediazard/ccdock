@@ -59,22 +59,26 @@ db_name: my_app_development
 #   - default
 
 # Some Rails apps use a gem like `rails_caddy_dev` that auto-registers a Caddy
-# route on boot via `ENV.key?('DEVCADDY')`. Because the check is PRESENCE-based
-# (any value triggers it), the only way to disable in a workspace is to remove
-# the key entirely. When true, ccdock strips DEVCADDY from both .env and
-# .env.local in each workspace so the gem doesn't load and doesn't compete with
-# ccdock's wildcard route. Default: false. Set true only if you actually use
-# such a gem.
+# route on boot via `ENV.key?('RAILS_CADDY_DEV')` (older versions gated on
+# `ENV.key?('DEVCADDY')`). Because the check is PRESENCE-based (any value
+# triggers it), the only way to disable in a workspace is to remove the key
+# entirely. When true, ccdock strips both RAILS_CADDY_DEV and the legacy
+# DEVCADDY from .env and .env.local in each workspace so the gem doesn't load
+# and doesn't compete with ccdock's wildcard route. Default: false. Set true
+# only if you actually use such a gem.
+#
+# (Legacy: the old key name `disable_devcaddy_in_workspace` still works as an
+# alias, so existing configs keep functioning.)
 #
 # When true, your project must also:
-#   - Keep DEVCADDY in .env / .env.local (env_file: loaded), NOT in compose's
-#     `environment:` block. compose's `environment:` overrides env_file, which
-#     would prevent workspaces from stripping the key.
+#   - Keep RAILS_CADDY_DEV in .env / .env.local (env_file: loaded), NOT in
+#     compose's `environment:` block. compose's `environment:` overrides
+#     env_file, which would prevent workspaces from stripping the key.
 #   - Bind main's web service to host port 3000 stably. Set WEB_PORT=3000 in
 #     main's .env (NOT .env.local — compose auto-loads .env for ${VAR}
 #     substitution; .env.local goes via env_file: into container env only).
 #     The gem's auto-route dials :3000 on the host.
-# disable_devcaddy_in_workspace: false
+# disable_rails_caddy_dev_in_workspace: false
 
 # Where worker Notification/Stop hooks write their JSONL inbox files (read by
 # the captain observer hook). Default: ~/.claude/docks/inbox.

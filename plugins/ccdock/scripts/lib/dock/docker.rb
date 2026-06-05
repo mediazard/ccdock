@@ -94,7 +94,7 @@ module Dock
     # Strip shell-inherited env vars that would override workspace .env settings.
     # Without this, a shell that previously ran main's compose (which exports
     # POSTGRES_PORT=5432, etc.) would force the workspace to bind those ports too.
-    PROBLEMATIC_VARS = %w[POSTGRES_PORT REDIS_PORT WEB_PORT DEVCADDY].freeze
+    PROBLEMATIC_VARS = %w[POSTGRES_PORT REDIS_PORT WEB_PORT RAILS_CADDY_DEV DEVCADDY].freeze
 
     def clean_env
       PROBLEMATIC_VARS.to_h { |k| [k, nil] }

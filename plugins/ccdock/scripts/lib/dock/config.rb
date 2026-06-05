@@ -16,7 +16,7 @@ module Dock
   #
   # Everything else is optional. Defaults assume nothing about the host
   # project beyond "uses docker compose + postgres". Rails-specific niceties
-  # (PROJECT_NAME env var, DEVCADDY stripping, named-volume cloning from
+  # (PROJECT_NAME env var, RAILS_CADDY_DEV stripping, named-volume cloning from
   # main into the workspace) are opt-in via dedicated keys — never on by
   # default. See .dock.example.yml for the full schema.
   class Config
@@ -30,7 +30,7 @@ module Dock
       'worktree_dir' => nil,            # defaults to "<project_name>.worktrees"
       'clone_volumes' => [],            # volume basenames to clone from main; empty → image's baked-in dirs
       'reserved_slugs' => [],
-      'disable_devcaddy_in_workspace' => false,
+      'disable_rails_caddy_dev_in_workspace' => false,
       'inbox_dir' => '~/.claude/docks/inbox'
     }.freeze
 
@@ -54,8 +54,13 @@ module Dock
 
     attr_reader :project_root
 
+    # Legacy config key → current key. rails_caddy_dev renamed its gate env var
+    # DEVCADDY → RAILS_CADDY_DEV; the config key followed. Old .dock.yml files
+    # using the legacy key keep working.
+    LEGACY_KEYS = { 'disable_devcaddy_in_workspace' => 'disable_rails_caddy_dev_in_workspace' }.freeze
+
     def initialize(raw, project_root:)
-      @raw = DEFAULTS.merge(raw || {})
+      @raw = DEFAULTS.merge(normalize_legacy_keys(raw || {}))
       @project_root = project_root
       validate!
       apply_derived_defaults!
@@ -76,7 +81,7 @@ module Dock
     # basename like "node_modules" resolves to <project_name>_node_modules → <slug>_node_modules.
     def clone_volumes = Array(fetch('clone_volumes')).map(&:to_s).reject(&:empty?)
     def reserved_slugs = Array(fetch('reserved_slugs'))
-    def disable_devcaddy_in_workspace? = fetch('disable_devcaddy_in_workspace') == true
+    def disable_rails_caddy_dev_in_workspace? = fetch('disable_rails_caddy_dev_in_workspace') == true
     def inbox_dir = File.expand_path(fetch('inbox_dir'))
 
     # Path inside a workspace where the slug marker lives — read by notify hook
@@ -98,6 +103,15 @@ module Dock
 
     def fetch(key)
       @raw.fetch(key) { raise ConfigInvalidError, "Missing config key: #{key}" }
+    end
+
+    # Copy any legacy key into its current name unless the current name was set
+    # explicitly (the current name always wins). Leaves the legacy key in place
+    # — it's harmless and keeps the round-tripped config recognisable.
+    def normalize_legacy_keys(raw)
+      LEGACY_KEYS.each_with_object(raw.dup) do |(old_key, new_key), out|
+        out[new_key] = raw[old_key] if raw.key?(old_key) && !raw.key?(new_key)
+      end
     end
 
     # Defense in depth: configured relative paths must stay relative and may
