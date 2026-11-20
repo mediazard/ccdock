@@ -175,4 +175,40 @@ class Dock::ConfigTest < Minitest::Test
       assert_equal File.realpath(dir), File.realpath(config.project_root)
     end
   end
+
+  def test_in_linked_worktree_reads_dock_yml_from_main_checkout
+    Dir.mktmpdir('ccdock-test-linked-') do |outer|
+      main = File.join(outer, 'main')
+      wt = File.join(outer, 'wt')
+      write_dock_yml(main, 'main-app')
+      write_dock_yml(wt, 'wt-app')
+      Dock::Workspace.stubs(:linked_worktree).returns({ root: wt, main_root: main })
+
+      config = Dock::Config.load(starting_path: wt)
+      assert_equal main, config.project_root
+      assert_equal 'main-app', config.project_name
+    end
+  end
+
+  def test_in_linked_worktree_falls_back_to_own_dock_yml_when_main_has_none
+    Dir.mktmpdir('ccdock-test-linked-') do |outer|
+      main = File.join(outer, 'main')
+      wt = File.join(outer, 'wt')
+      FileUtils.mkdir_p(main)
+      write_dock_yml(wt, 'wt-app')
+      Dock::Workspace.stubs(:linked_worktree).returns({ root: wt, main_root: main })
+
+      config = Dock::Config.load(starting_path: wt)
+      assert_equal wt, config.project_root
+      assert_equal 'wt-app', config.project_name
+    end
+  end
+
+  private
+
+  def write_dock_yml(dir, project_name)
+    FileUtils.mkdir_p(dir)
+    File.write(File.join(dir, '.dock.yml'),
+               YAML.dump(DockTestHelpers::DEFAULT_CONFIG.merge('project_name' => project_name)))
+  end
 end

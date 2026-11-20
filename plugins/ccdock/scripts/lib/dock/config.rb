@@ -36,7 +36,11 @@ module Dock
 
     class << self
       def load(starting_path: Dir.pwd)
-        root = find_project_root(starting_path)
+        # Inside a linked git worktree, prefer the main checkout's .dock.yml so
+        # config (and the dump) have a single source of truth.
+        linked = Workspace.linked_worktree(starting_path)
+        search = linked && File.file?(File.join(linked[:main_root], '.dock.yml')) ? linked[:main_root] : starting_path
+        root = find_project_root(search)
         path = File.join(root, '.dock.yml')
         raw = YAML.safe_load_file(path, permitted_classes: []) || {}
         new(raw, project_root: root)
