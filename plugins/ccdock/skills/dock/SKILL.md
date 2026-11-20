@@ -23,22 +23,21 @@ If you run `/dock` from inside an existing linked git worktree (made by Orca, Co
 
 - No worktree is created. The slug is the folder name, normalised (`My_Worktree` becomes `my-worktree`).
 - `<input>` is optional and ignored.
-- `.dock.yml` and the dump are read from the main checkout.
-- Reruns are safe. If the stack already exists, the dump restore is skipped.
+- `.dock.yml` is read from the main checkout.
+- Reruns are safe. If the stack already exists, the volume clone is skipped.
 - A slug already used by a dock in another folder is refused.
 
 ## What it does
 
-1. Verifies `tmp/dock-dump.sql.gz` (or whatever `dump_path` is configured) exists. If missing, refuses with a pointer to run `/dock-dump` first.
-2. Creates a jj workspace at `<worktree_dir>/<slug>/` (or git worktree fallback). Inherits the current working-copy state via `jj workspace add -r @`.
-3. Copies `.env`, `.env.local`, `.bundle`, `.claude/settings.local.json` from the project root.
-4. Sed-modifies the copied env files for workspace identity (COMPOSE_PROJECT_NAME, HOST_DOMAIN, dynamic ports).
-5. Brings up postgres + redis, restores the dump.
-6. Clones any volumes listed in `clone_volumes` (empty by default — relies on the image build).
-7. Brings up web + worker — entrypoint runs `db:prepare` automatically to apply any pending migrations against the restored schema.
-8. Polls web health.
-9. Registers a Caddy wildcard route at `*.<slug>-<base_host>`.
-10. Writes `.dock/{metadata.json, fingerprint, slug}` in the workspace.
+1. Creates a jj workspace at `<worktree_dir>/<slug>/` (or git worktree fallback). Inherits the current working-copy state via `jj workspace add -r @`.
+2. Copies `.env`, `.env.local`, `.bundle`, `.claude/settings.local.json` from the project root.
+3. Sed-modifies the copied env files for workspace identity (COMPOSE_PROJECT_NAME, HOST_DOMAIN, dynamic ports).
+4. Brings up postgres + redis.
+5. Clones any volumes listed in `clone_volumes` (empty by default — relies on the image build).
+6. Brings up web + worker. The app's entrypoint (e.g. Rails `db:prepare`) creates and seeds the DB. ccdock does nothing database-specific.
+7. Polls web health.
+8. Registers a Caddy wildcard route at `*.<slug>-<base_host>`.
+9. Writes `.dock/{metadata.json, fingerprint, slug}` in the workspace.
 
 ## Invocation
 
@@ -55,7 +54,7 @@ After the script returns, show the user the URL and how to open the worker.
 - A `.dock.yml` at the project root.
 - If `clone_volumes:` is configured, the source volumes must exist on the Docker daemon (e.g. main's compose stack has been brought up once so compose auto-created its named volumes). If a source volume is absent, the clone is a no-op and the workspace gets an empty volume — the image build (or first-run install) populates it.
 - Caddy must be running on host with admin API at `localhost:2019` (project's responsibility).
-- `tmp/dock-dump.sql.gz` (or configured `dump_path`) must exist — run `/dock-dump` if not.
+- The app's entrypoint must create and seed the DB (e.g. Rails `db:prepare`).
 
 ## Worker question routing
 

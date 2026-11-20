@@ -9,7 +9,7 @@ A **dock** = jj/git worktree + isolated Docker compose stack + Caddy wildcard ro
 Multiple docks run in parallel against the same machine, each with:
 
 - Own `COMPOSE_PROJECT_NAME` → own containers/networks/volumes (auto-namespaced)
-- Own restored DB (from a pre-generated dump of main's data)
+- Own database, created and seeded by your app's entrypoint (e.g. Rails `db:prepare`)
 - Own scoped named volumes (optional: clone selected named volumes from main via `clone_volumes:` for warm-start speed)
 - Wildcard Caddy route at `*.<slug>-<base_host>` → unique per-workspace dynamic web port
 
@@ -24,7 +24,6 @@ The captain auto-observes worker docks: a `UserPromptSubmit` hook scans the shar
 | `/dock <input>` | Create a new dock from a branch path, ticket ID, or free-form description |
 | `/docks` | List active docks with status, URL, ticket |
 | `/undock <slug>` | Destroy a dock — containers, volumes, Caddy route, inbox |
-| `/dock-dump` | Pre-generate the DB dump that `/dock` uses to seed new workspaces |
 
 ## Install
 
@@ -47,8 +46,8 @@ Add to `~/.claude/settings.json`:
 ```
 
 Restart Claude Code (or `/plugins reload` if available). Claude Code clones
-`git@github.com:mediazard/ccdock.git` into its plugin cache and exposes the four
-skills (`/dock`, `/docks`, `/undock`, `/dock-dump`) plus the Notification/Stop
+`git@github.com:mediazard/ccdock.git` into its plugin cache and exposes the three
+skills (`/dock`, `/docks`, `/undock`) plus the Notification/Stop
 hooks. To pull the latest plugin version later, run `/plugins update ccdock`.
 
 Private repo? Ensure your colleagues have read access on GitHub and that their
@@ -90,17 +89,16 @@ The plugin shells out to these — install them once per machine:
 
 ## Adopting in a project
 
-Place a `.dock.yml` at your project root. The minimum is three keys; everything else has sensible generic defaults (see `.dock.example.yml` for the full schema).
+Place a `.dock.yml` at your project root. The minimum is two keys; everything else has sensible generic defaults (see `.dock.example.yml` for the full schema).
 
 ```yaml
 project_name: my-app          # must match your main stack's COMPOSE_PROJECT_NAME
 base_host: dev.localhost      # workspaces reachable at *.<slug>-<base_host>
-db_name: my_app_development   # pg_dump source + restore target
 ```
 
 ### In-place mode
 
-Run `/dock` from inside an existing linked git worktree (a Conductor or Orca worktree, or one made with `git worktree add`) and ccdock docks that worktree in place instead of creating a new one. The slug is the folder name, `.dock.yml` and the dump come from the main checkout, and `/undock` removes only the `.dock/` folder, never the worktree.
+Run `/dock` from inside an existing linked git worktree (a Conductor or Orca worktree, or one made with `git worktree add`) and ccdock docks that worktree in place instead of creating a new one. The slug is the folder name, `.dock.yml` comes from the main checkout, and `/undock` removes only the `.dock/` folder, never the worktree.
 
 ### Compose requirements
 
@@ -132,7 +130,6 @@ services:
 From inside your project run:
 
 ```
-/dock-dump            # one-time per fresh-data run
 /dock sc-12345        # spawn a workspace
 /docks                # list active docks
 /undock sc-12345      # tear down
@@ -151,10 +148,9 @@ ccdock-plugin-root/                          # this repo
 └── plugins/ccdock/
     ├── .claude-plugin/plugin.json
     ├── hooks/hooks.json                     # Notification + Stop + UserPromptSubmit
-    ├── skills/{dock,docks,undock,dock-dump}/SKILL.md
+    ├── skills/{dock,docks,undock}/SKILL.md
     └── scripts/
         ├── cli                              # thin Thor entrypoint
-        ├── dump                             # bash, reads .dock.yml for project values
         ├── notify                           # bash hook — worker writes to inbox
         ├── observer                         # bash hook — captain reads inbox, injects context
         └── lib/dock/
@@ -173,7 +169,6 @@ ccdock-plugin-root/                          # this repo
 
 - Slugs are constrained to `[a-z0-9][a-z0-9-]{0,62}` and re-validated at every boundary (CLI, Caddy admin API, inbox path, hook script). Path-traversal / shell-injection payloads in `/dock <input>` and in on-disk `.dock/slug` markers are rejected silently.
 - `.dock.yml` paths are forbidden from containing `..` segments or absolute paths.
-- `restore_dump` streams gzip → psql via `Open3.pipeline` — no shell interpolation.
 - Inherited `.env*` and `.claude/settings.local.json` files are `chmod 0600` after copy.
 - The Caddy admin API is assumed local-only (default Caddy binding); do not expose `:2019` on a shared host.
 - Hooks fire under your user account — review `hooks/hooks.json` before installing on a shared machine.
