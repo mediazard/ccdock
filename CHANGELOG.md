@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-11-20
+
+**In-place docks.** Run `/dock` from inside an existing linked git worktree
+(e.g. a Conductor or Orca workroom) and that worktree becomes the dock. No new
+worktree is created.
+
+- Slug is the folder name (normalised). `<input>` is optional and ignored.
+- `.dock.yml` and the dump come from the main checkout.
+- Reruns are safe: if the compose stack already exists, the dump restore and
+  volume clone are skipped, and the Caddy route is replaced.
+- `/docks` and `/undock` find docks through the compose `working_dir` label,
+  with the old `<worktree_dir>/<slug>` path as fallback.
+- `/undock` on an in-place dock removes only `<workroom>/.dock/`, never the
+  workroom folder.
+- `.dock/.gitignore` (`*`) is written so dock state is never committed.
+
 ## 0.3.0 — 2026-06-02
 
 **`rails_caddy_dev` renamed its gate env var.** The latest `rails_caddy_dev`

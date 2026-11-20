@@ -1,6 +1,6 @@
 ---
 name: undock
-description: Destroy a dock workspace — stops containers, removes its scoped Docker volumes, deletes the Caddy route, removes its inbox file. Does NOT remove the worktree directory itself (user runs `jj workspace forget` separately). Use when finished with a ticket and ready to reclaim resources.
+description: Destroy a dock workspace — stops containers, removes its scoped Docker volumes, deletes the Caddy route, removes its inbox file. Never deletes the workspace folder (user runs `jj workspace forget` separately). Use when finished with a ticket and ready to reclaim resources.
 ---
 
 # /undock — Tear down a dock workspace
@@ -22,7 +22,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cli destroy <slug>
 5. Removes each `<slug>_<basename>` volume listed in `clone_volumes` (these were created outside compose, so `down -v` doesn't catch them).
 6. Deletes the Caddy wildcard route by ID.
 7. Removes `~/.claude/docks/inbox/<slug>.jsonl`.
-8. Leaves the workspace directory at `<worktree_dir>/<slug>/` intact for review.
+8. Leaves the workspace directory intact for review. For an in-place dock (started inside an existing worktree) it removes only `<workroom>/.dock/`; the workroom folder is never deleted.
 
 ## Safety guards
 
