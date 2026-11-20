@@ -10,6 +10,7 @@ module Dock
     # Removes: containers, scoped Docker volumes (incl. node_modules created outside compose),
     # Caddy wildcard route, inbox file. Leaves the workspace dir + jj workspace registration
     # in place — user runs `jj workspace forget` themselves to fully reclaim disk.
+    # In-place docks (started inside an existing worktree) only lose their .dock/ folder.
     #
     # Safety: refuses reserved slugs, refuses if fingerprint mismatches, refuses if any volume
     # would touch main's project (volume names must start with `<slug>_`).
@@ -17,7 +18,7 @@ module Dock
       def call(slug)
         abort_with "Invalid slug #{slug.inspect}" unless Slug.valid?(slug)
 
-        workspace_path = @config.workspace_path_for(slug)
+        workspace_path = dock_workspace_path(slug)
         abort_with "Workspace for '#{slug}' not found at #{workspace_path}" unless File.directory?(workspace_path)
 
         refuse_reserved!(slug)
@@ -43,8 +44,13 @@ module Dock
         Caddy.delete_route(slug: slug)
         Inbox.remove(slug: slug, config: @config)
 
-        say "Dock '#{slug}' destroyed. Workspace dir left at #{workspace_path}; " \
-            'run `jj workspace forget` (or `git worktree remove`) separately.'
+        if metadata['in_place']
+          FileUtils.rm_rf(File.join(workspace_path, '.dock'))
+          say "Dock '#{slug}' destroyed. Workroom left untouched at #{workspace_path}."
+        else
+          say "Dock '#{slug}' destroyed. Workspace dir left at #{workspace_path}; " \
+              'run `jj workspace forget` (or `git worktree remove`) separately.'
+        end
       end
 
       private

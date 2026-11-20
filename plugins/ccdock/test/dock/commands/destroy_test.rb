@@ -3,6 +3,10 @@
 require_relative '../../test_helper'
 
 class Dock::Commands::DestroyTest < Minitest::Test
+  def setup
+    Dock::Docker.stubs(:project_working_dir).returns(nil)
+  end
+
   def teardown
     WebMock.reset!
   end
@@ -139,7 +143,53 @@ class Dock::Commands::DestroyTest < Minitest::Test
     end
   end
 
+  def test_in_place_dock_removes_only_dot_dock_and_leaves_workroom
+    with_dock_config do |config, project_dir|
+      slug = 'my-workroom'
+      wt = File.join(File.dirname(project_dir), 'My_Workroom')
+      write_valid_dock(config, wt, slug, 'in_place' => true)
+      File.write(File.join(wt, 'keep.txt'), 'x')
+      stub_teardown(slug, wt)
+
+      out, = capture_io { Dock::Commands::Destroy.new(config: config).call(slug) }
+
+      assert File.directory?(wt), 'workroom folder must survive'
+      assert File.exist?(File.join(wt, 'keep.txt'))
+      refute File.exist?(File.join(wt, '.dock')), '.dock should be removed'
+      assert_match(/Workroom left untouched/, out)
+    end
+  end
+
+  def test_old_style_dock_keeps_dot_dock
+    with_dock_config do |config|
+      slug = 'sc-1'
+      build_valid_workspace(config, slug)
+      stub_teardown(slug, config.workspace_path_for(slug))
+
+      capture_io { Dock::Commands::Destroy.new(config: config).call(slug) }
+
+      assert File.exist?(File.join(config.workspace_path_for(slug), config.metadata_filename))
+    end
+  end
+
   private
+
+  def stub_teardown(slug, workspace_path)
+    Dock::Docker.stubs(:project_working_dir).with(project: slug).returns(workspace_path)
+    Dock::Docker.stubs(:project_volumes).returns(["#{slug}_postgres"])
+    Dock::Docker.stubs(:compose)
+    Dock::Caddy.stubs(:delete_route)
+    Dock::Inbox.stubs(:remove)
+  end
+
+  def write_valid_dock(config, path, slug, extra = {})
+    created_at = '2026-01-01T00:00:00Z'
+    metadata = { 'slug' => slug, 'parent_dir' => config.project_root, 'created_at' => created_at }.merge(extra)
+    fp = Dock::Fingerprint.compute(slug: slug, parent_dir: config.project_root, created_at: created_at)
+    FileUtils.mkdir_p(File.join(path, '.dock'))
+    File.write(File.join(path, config.metadata_filename), JSON.pretty_generate(metadata))
+    File.write(File.join(path, config.fingerprint_filename), fp)
+  end
 
   # Build a workspace with valid metadata + matching fingerprint so destroy passes
   # both the metadata-present and fingerprint-verify guards.
