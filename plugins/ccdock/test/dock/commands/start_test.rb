@@ -3,6 +3,11 @@
 require_relative '../../test_helper'
 
 class Dock::Commands::StartTest < Minitest::Test
+  def setup
+    # This repo is itself a linked worktree: never let a test hit real detection.
+    Dock::Workspace.stubs(:linked_worktree).returns(nil)
+  end
+
   def teardown
     WebMock.reset!
   end
@@ -57,6 +62,8 @@ class Dock::Commands::StartTest < Minitest::Test
 
       # Slug marker is written and contains the slug.
       assert_equal 'sc-1', File.read(File.join(ws_path, config.slug_marker_filename))
+      assert_equal "*\n", File.read(File.join(ws_path, '.dock', '.gitignore'))
+      refute metadata['in_place']
     end
   end
 
@@ -147,7 +154,90 @@ class Dock::Commands::StartTest < Minitest::Test
     end
   end
 
+  # ---- in-place mode ---------------------------------------------------------
+
+  def test_in_place_docks_in_the_existing_worktree
+    with_in_place do |config, wt, cmd|
+      Dock::Workspace.expects(:create).never
+      cmd.expects(:run_dump_pipeline!).once
+      order = sequence('caddy')
+      Dock::Caddy.expects(:delete_route).with(slug: 'my-workroom').in_sequence(order)
+      Dock::Caddy.expects(:register_wildcard).in_sequence(order).returns('ws')
+
+      capture_io { cmd.call('ignored input') }
+
+      metadata = JSON.parse(File.read(File.join(wt, config.metadata_filename)))
+      assert_equal 'my-workroom', metadata['slug']
+      assert_equal config.project_root, metadata['parent_dir']
+      assert_equal wt, metadata['workspace_path']
+      assert_equal true, metadata['in_place']
+      assert_match(/^COMPOSE_PROJECT_NAME=my-workroom$/, File.read(File.join(wt, '.env')))
+      assert_equal "*\n", File.read(File.join(wt, '.dock', '.gitignore'))
+    end
+  end
+
+  def test_in_place_rerun_skips_dump_restore_and_volume_clone
+    with_in_place(clone_volumes: %w[node_modules]) do |_config, wt, cmd|
+      Dock::Docker.stubs(:project_working_dir).returns(wt)
+      cmd.expects(:run_dump_pipeline!).never
+      Dock::Docker.expects(:try_clone_volume).never
+
+      out, = capture_io { cmd.call }
+      assert_match(/Existing dock stack found/, out)
+    end
+  end
+
+  def test_in_place_aborts_when_slug_is_used_by_a_dock_elsewhere
+    with_in_place do |_config, _wt, cmd|
+      Dock::Docker.stubs(:project_working_dir).returns('/somewhere/else')
+      Dock::Docker.expects(:compose).never
+
+      _, err = capture_subprocess_io_with_exit { cmd.call }
+      assert_match(/already used/, err)
+    end
+  end
+
+  def test_in_place_refuses_reserved_slug
+    with_in_place(folder: 'demoapp') do |_config, _wt, cmd|
+      _, err = capture_subprocess_io_with_exit { cmd.call }
+      assert_match(/reserved/, err)
+    end
+  end
+
+  def test_in_place_works_without_input
+    with_in_place do |config, wt, cmd|
+      capture_io { cmd.call(nil) }
+      assert File.exist?(File.join(wt, config.metadata_filename))
+    end
+  end
+
   private
+
+  # Builds <outer>/<folder> as the linked worktree, with .env in the project
+  # root, and stubs every external interaction. Yields (config, wt, cmd).
+  def with_in_place(folder: 'My_Workroom', **overrides)
+    with_dock_config(**overrides) do |config, project_dir|
+      FileUtils.mkdir_p(File.dirname(config.dump_path))
+      File.write(config.dump_path, 'gz-bytes')
+      File.write(File.join(project_dir, '.env'), "FOO=1\n")
+      wt = File.join(File.dirname(project_dir), folder)
+      FileUtils.mkdir_p(wt)
+
+      Dock::Workspace.stubs(:linked_worktree).returns({ root: wt, main_root: project_dir })
+      Dock::Docker.stubs(:project_working_dir).returns(nil)
+      Dock::Docker.stubs(:compose).returns(nil)
+      Dock::Docker.stubs(:service_status).returns({ 'Health' => 'healthy' })
+      Dock::Docker.stubs(:try_clone_volume).returns(:cloned)
+      Dock::Docker.stubs(:published_port).returns(49_162)
+      Dock::Caddy.stubs(:delete_route)
+      Dock::Caddy.stubs(:register_wildcard).returns('ws')
+
+      cmd = Dock::Commands::Start.new(config: config)
+      cmd.stubs(:system).returns(true)
+      cmd.stubs(:run_dump_pipeline!).returns(nil)
+      yield config, wt, cmd
+    end
+  end
 
   # Mimics capture_io but tolerates `exit 1` (Dock::Commands::Base#abort_with).
   def capture_subprocess_io_with_exit

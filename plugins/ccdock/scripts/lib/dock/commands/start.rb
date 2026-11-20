@@ -7,11 +7,12 @@ require 'time'
 
 module Dock
   module Commands
-    # `cli start <input> [--description "..."]`
+    # `cli start [input] [--description "..."]`
     #
     # Orchestrates the full workspace creation flow:
     #   1. Validate dump file exists
-    #   2. Derive slug + workspace path
+    #   2. Derive slug + workspace path (in a linked git worktree: dock in place,
+    #      slug = folder name, no worktree created, reruns skip the dump restore)
     #   3. Create worktree (or reuse if already there)
     #   4. Copy inherited dotfiles (.env, .env.local, .bundle, .claude/settings.local.json)
     #   5. Sed-mutate env files (per Dock::EnvFiles)
@@ -24,25 +25,52 @@ module Dock
     class Start < Base
       INHERITABLE_FILES = %w[.env .env.local .bundle .claude/settings.local.json].freeze
 
-      def call(input, description: nil)
+      def call(input = nil, description: nil)
         ensure_dump_present!
-        slug = Slug.from(input, config: @config)
-        workspace_path = @config.workspace_path_for(slug)
-        say "Preparing dock '#{slug}' at #{workspace_path}"
+        linked = Workspace.linked_worktree(Dir.pwd)
 
-        provision_worktree(workspace_path)
+        if linked
+          workspace_path = linked[:root]
+          slug, rerun = resolve_in_place(workspace_path, input: input)
+        else
+          slug = Slug.from(input, config: @config)
+          workspace_path = @config.workspace_path_for(slug)
+          say "Preparing dock '#{slug}' at #{workspace_path}"
+          provision_worktree(workspace_path)
+        end
+
         Dir.chdir(workspace_path) do
           prepare_workspace(workspace_path, slug: slug)
-          start_stack(slug)
+          start_stack(slug, first_run: !rerun)
           web_port = resolve_web_port!(slug)
+          # A rerun may find the old route pointing at a stale port.
+          Caddy.delete_route(slug: slug) if linked
           Caddy.register_wildcard(slug: slug, port: web_port, config: @config)
-          write_workspace_state(workspace_path, slug: slug, web_port: web_port, description: description, input: input)
+          write_workspace_state(workspace_path, slug: slug, web_port: web_port, description: description,
+                                                input: input, in_place: !linked.nil?)
         end
 
         announce_ready(slug)
       end
 
       private
+
+      # In-place mode: the current linked worktree IS the workspace. The slug is
+      # its folder name; an existing compose project from there means a rerun.
+      # @return [Array(String, Boolean)] slug, rerun
+      def resolve_in_place(workspace_path, input:)
+        slug = Slug.from_directory(workspace_path)
+        refuse_reserved!(slug)
+
+        existing = Docker.project_working_dir(project: slug)
+        if existing && !File.identical?(existing, workspace_path)
+          abort_with "Slug '#{slug}' is already used by a dock at #{existing}"
+        end
+
+        say "Docking in place at #{workspace_path} as '#{slug}'"
+        say "  (input #{input.inspect} is ignored in a linked worktree)" unless input.to_s.strip.empty?
+        [slug, !existing.nil?]
+      end
 
       def provision_worktree(workspace_path)
         if Workspace.already_present?(workspace_path)
@@ -57,11 +85,15 @@ module Dock
         EnvFiles.apply(workspace_path, slug: slug, config: @config)
       end
 
-      def start_stack(slug)
+      def start_stack(slug, first_run: true)
         bring_up_data_services(slug)
         wait_for_postgres(slug)
-        restore_dump(slug)
-        clone_named_volumes(slug)
+        if first_run
+          restore_dump(slug)
+          clone_named_volumes(slug)
+        else
+          say '  Existing dock stack found; skipping dump restore.'
+        end
         bring_up_app_services(slug)
         wait_for_web(slug)
       end
@@ -183,11 +215,11 @@ module Dock
         abort_with "Dump restore failed for '#{slug}'"
       end
 
-      def write_workspace_state(workspace_path, slug:, web_port:, description:, input:)
+      def write_workspace_state(workspace_path, slug:, web_port:, description:, input:, in_place:)
         FileUtils.mkdir_p(File.join(workspace_path, '.dock'))
 
         created_at = Time.now.utc.iso8601
-        ticket = input.to_s[/\bsc-\d+\b/i]
+        ticket = input.to_s[/\bsc-\d+\b/i] || slug[/\bsc-\d+\b/i]
 
         metadata = {
           slug: slug,
@@ -198,7 +230,8 @@ module Dock
           web_port: web_port,
           created_at: created_at,
           parent_dir: @config.project_root,
-          workspace_path: workspace_path
+          workspace_path: workspace_path,
+          in_place: in_place
         }
         File.write(File.join(workspace_path, @config.metadata_filename), JSON.pretty_generate(metadata))
 
@@ -206,6 +239,7 @@ module Dock
         Fingerprint.write(workspace_path: workspace_path, value: fingerprint, config: @config)
 
         File.write(File.join(workspace_path, @config.slug_marker_filename), slug)
+        File.write(File.join(workspace_path, '.dock', '.gitignore'), "*\n")
       end
     end
   end
