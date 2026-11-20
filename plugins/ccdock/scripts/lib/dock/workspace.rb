@@ -19,6 +19,25 @@ module Dock
       File.directory?(File.join(path, '.jj')) || git_worktree?(path)
     end
 
+    # Detects whether `path` is inside a linked git worktree.
+    # @return [Hash, nil] { root:, main_root: } for a linked worktree, nil for a
+    #   main checkout, a non-repo, or any git failure
+    def linked_worktree(path)
+      out, _err, status = Open3.capture3(
+        'git', '-C', path, 'rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir'
+      )
+      return nil unless status.success?
+
+      root, git_dir, common = out.lines.map(&:strip)
+      git_dir = File.expand_path(git_dir, path)
+      common = File.expand_path(common, path)
+      return nil if git_dir == common
+
+      { root: root, main_root: File.dirname(common) }
+    rescue StandardError
+      nil
+    end
+
     def create(path)
       if jj_available?
         # -r @ ensures the workspace inherits uncommitted file state from the

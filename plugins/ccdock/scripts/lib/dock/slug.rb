@@ -46,6 +46,15 @@ module Dock
       ensure_unique(base, config: config)
     end
 
+    # Slug for a dock that lives in an existing folder (in-place mode): the
+    # folder's basename, normalised. No ticket extraction, no uniqueness suffix.
+    # @return [String] a filesystem-safe slug
+    # @raise [InvalidSlugError] if nothing usable is left of the name
+    def from_directory(path)
+      normalized = File.basename(path).downcase.gsub(/[^a-z0-9-]+/, '-').gsub(/-+/, '-').gsub(/\A-|-\z/, '')
+      validate!(normalized[0, 63].sub(/-+\z/, ''))
+    end
+
     def base_slug(input)
       return adj_noun if input.nil? || input.strip.empty?
 

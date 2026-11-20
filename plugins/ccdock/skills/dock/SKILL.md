@@ -9,13 +9,23 @@ Creates a parallel, isolated Docker stack of the current project (defined by `.d
 
 ## Usage
 
-The user invokes `/dock <input>`. Input can be:
+The user invokes `/dock <input>` (input is optional in a linked worktree, see In-place mode). Input can be:
 
 - A branch path (e.g. `user/sc-12345/feature-name`) — slug becomes `sc-12345`
 - A bare ticket ID (e.g. `sc-12345`) — slug becomes `sc-12345`
 - A free-form description (e.g. `fix the broken foo`) — slug auto-generated (`happy-otter`)
 
 If the slug already exists, a numeric suffix is appended (`sc-12345-1`, `sc-12345-2`).
+
+## In-place mode
+
+If you run `/dock` from inside an existing linked git worktree (made by Orca, Conductor, `git worktree add`, or any other tool), that worktree is docked in place:
+
+- No worktree is created. The slug is the folder name, normalised (`My_Worktree` becomes `my-worktree`).
+- `<input>` is optional and ignored.
+- `.dock.yml` and the dump are read from the main checkout.
+- Reruns are safe. If the stack already exists, the dump restore is skipped.
+- A slug already used by a dock in another folder is refused.
 
 ## What it does
 
@@ -35,7 +45,7 @@ If the slug already exists, a numeric suffix is appended (`sc-12345-1`, `sc-1234
 Run from any directory inside a project that has `.dock.yml`:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/cli start "<input>" --description "<optional context>"
+${CLAUDE_PLUGIN_ROOT}/scripts/cli start ["<input>"] --description "<optional context>"
 ```
 
 After the script returns, show the user the URL and how to open the worker.

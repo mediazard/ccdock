@@ -33,6 +33,29 @@ module Dock
         warn(message)
         exit 1
       end
+
+      # Where a dock's workspace lives: the directory its compose project was
+      # started from (covers in-place docks), else the configured worktree dir.
+      # After `compose down` the containers (and label) are gone; then a current
+      # linked worktree whose .dock/slug matches is the workspace.
+      def dock_workspace_path(slug)
+        Docker.project_working_dir(project: slug) || current_worktree_for(slug) || @config.workspace_path_for(slug)
+      end
+
+      def current_worktree_for(slug)
+        linked = Workspace.linked_worktree(Dir.pwd)
+        return nil unless linked
+
+        marker = File.join(linked[:root], @config.slug_marker_filename)
+        linked[:root] if File.file?(marker) && File.read(marker).strip == slug
+      end
+
+      def refuse_reserved!(slug)
+        reserved = (@config.reserved_slugs + [@config.project_name, @config.base_project]).compact
+        return unless reserved.include?(slug)
+
+        abort_with "Refusing: '#{slug}' is reserved (main project name or in reserved_slugs)."
+      end
     end
   end
 end

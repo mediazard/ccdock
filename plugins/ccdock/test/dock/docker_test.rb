@@ -151,6 +151,27 @@ class Dock::DockerTest < Minitest::Test
     assert_raises(Dock::Error) { Dock::Docker.compose(project: 'sc-1', args: %w[up -d]) }
   end
 
+  # ---- project_working_dir ---------------------------------------------------
+
+  def test_project_working_dir_returns_first_non_empty_line
+    Open3.expects(:capture3).with(
+      'docker', 'ps', '-a', '--filter', 'label=com.docker.compose.project=sc-1',
+      '--format', '{{.Label "com.docker.compose.project.working_dir"}}'
+    ).returns(["\n/work/sc-1\n/work/sc-1\n", '', mock_success_status])
+
+    assert_equal '/work/sc-1', Dock::Docker.project_working_dir(project: 'sc-1')
+  end
+
+  def test_project_working_dir_nil_when_no_containers
+    Open3.expects(:capture3).returns(['', '', mock_success_status])
+    assert_nil Dock::Docker.project_working_dir(project: 'sc-1')
+  end
+
+  def test_project_working_dir_nil_when_docker_fails
+    Open3.expects(:capture3).returns(['', 'oops', mock_failure_status])
+    assert_nil Dock::Docker.project_working_dir(project: 'sc-1')
+  end
+
   private
 
   def mock_success_status

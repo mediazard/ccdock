@@ -3,6 +3,11 @@
 require_relative '../../test_helper'
 
 class Dock::Commands::ListTest < Minitest::Test
+  def setup
+    Dock::Docker.stubs(:project_working_dir).returns(nil)
+    Dock::Workspace.stubs(:linked_worktree).returns(nil)
+  end
+
   def test_prints_empty_message_when_no_compose_projects
     with_dock_config do |config|
       Dock::Docker.stubs(:list_projects).returns([])
@@ -38,6 +43,22 @@ class Dock::Commands::ListTest < Minitest::Test
       assert_includes out, 'question'
       assert_includes out, 'sc-1'
       assert_match(/^---/, out, 'rule separator should be present')
+    end
+  end
+
+  def test_finds_in_place_dock_outside_worktree_dir_via_working_dir_label
+    with_dock_config do |config, project_dir|
+      slug = 'my-worktree'
+      wt = File.join(File.dirname(project_dir), 'My_Worktree')
+      FileUtils.mkdir_p(File.join(wt, '.dock'))
+      File.write(File.join(wt, config.metadata_filename), JSON.pretty_generate('slug' => slug, 'url' => 'https://x'))
+      Dock::Docker.stubs(:project_working_dir).with(project: slug).returns(wt)
+      Dock::Docker.stubs(:list_projects).returns([{ 'Name' => slug }])
+      Dock::Inbox.stubs(:last_event).returns(nil)
+
+      out, _err = capture_io { Dock::Commands::List.new(config: config).call }
+      assert_includes out, slug
+      assert_includes out, 'https://x'
     end
   end
 

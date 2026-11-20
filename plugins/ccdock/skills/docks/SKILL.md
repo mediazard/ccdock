@@ -23,7 +23,7 @@ happy-otter   idle      https://app.happy-otter-dev.localhost     —          8
 
 Status sources:
 
-- **Active docks:** identified by intersecting `docker compose ls` (Docker daemon truth) with the set of compose projects whose workspace dir has a `.dock/metadata.json` marker.
+- **Active docks:** identified by intersecting `docker compose ls` (Docker daemon truth) with the set of compose projects whose workspace dir has a `.dock/metadata.json` marker. The workspace dir is read from the containers' `com.docker.compose.project.working_dir` label (covers in-place docks anywhere on disk), falling back to `<worktree_dir>/<slug>`.
 - **question/idle:** last event in `~/.claude/docks/inbox/<slug>.jsonl` written by the worker's Notification/Stop hook. `—` means no inbox file yet.
 
 ## Captain observer (automatic)

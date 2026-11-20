@@ -12,9 +12,10 @@ module Dock
   class CLI < Thor
     def self.exit_on_failure? = true
 
-    desc 'start INPUT', 'Create a dock workspace from a branch path, ticket ID, or free-form description'
+    desc 'start [INPUT]', 'Create a dock workspace from a branch path, ticket ID, or free-form description. ' \
+                          'Inside a linked git worktree, docks that worktree in place (INPUT optional, ignored).'
     method_option :description, type: :string, default: nil, desc: 'Free-form description stored in metadata'
-    def start(input)
+    def start(input = nil)
       Dock::Commands::Start.new.call(input, description: options[:description])
     end
 
