@@ -36,7 +36,7 @@ module Dock
           # downstream and crash the whole list.
           next unless Slug.valid?(slug)
 
-          workspace_path = @config.workspace_path_for(slug)
+          workspace_path = dock_workspace_path(slug)
           metadata_file = File.join(workspace_path, @config.metadata_filename)
           next unless File.exist?(metadata_file)
 
