@@ -7,7 +7,6 @@ class Dock::ConfigTest < Minitest::Test
     with_dock_config do |config, dir|
       assert_equal 'demoapp', config.project_name
       assert_equal 'dev.localhost', config.base_host
-      assert_equal 'demoapp_development', config.db_name
       assert_equal dir, config.project_root
     end
   end
@@ -29,7 +28,6 @@ class Dock::ConfigTest < Minitest::Test
       end
       assert_match(/missing required keys/, error.message)
       assert_match(/base_host/, error.message)
-      assert_match(/db_name/, error.message)
     end
   end
 
@@ -122,10 +120,22 @@ class Dock::ConfigTest < Minitest::Test
     end
   end
 
-  def test_dump_path_is_resolved_under_project_root
-    with_dock_config do |config, dir|
-      assert_equal File.join(dir, 'tmp/dock-dump.sql.gz'), config.dump_path
+  def test_old_database_keys_are_silently_ignored
+    Dir.mktmpdir('ccdock-test-old-keys-') do |dir|
+      File.write(
+        File.join(dir, '.dock.yml'),
+        YAML.dump(DockTestHelpers::DEFAULT_CONFIG.merge(
+                    'dump_path' => 'tmp/dock-dump.sql.gz', 'db_name' => 'app', 'db_user' => 'pg',
+                    'db_service' => 'db'
+                  ))
+      )
+      config = Dock::Config.load(starting_path: dir)
+      assert_equal 'demoapp', config.project_name
     end
+  end
+
+  def test_db_name_is_not_required
+    refute_includes Dock::Config::REQUIRED_KEYS, 'db_name'
   end
 
   def test_workspace_path_for_joins_worktree_dir_and_slug
@@ -151,18 +161,6 @@ class Dock::ConfigTest < Minitest::Test
       config = Dock::Config.load(starting_path: dir)
       error = assert_raises(Dock::ConfigInvalidError) { config.worktree_dir_path }
       assert_match(/may not contain '\.\.'/, error.message)
-    end
-  end
-
-  def test_rejects_absolute_dump_path
-    Dir.mktmpdir('ccdock-test-bad-dump-') do |dir|
-      File.write(
-        File.join(dir, '.dock.yml'),
-        YAML.dump(DockTestHelpers::DEFAULT_CONFIG.merge('dump_path' => '/etc/passwd'))
-      )
-      config = Dock::Config.load(starting_path: dir)
-      error = assert_raises(Dock::ConfigInvalidError) { config.dump_path }
-      assert_match(/must be a relative path/, error.message)
     end
   end
 
