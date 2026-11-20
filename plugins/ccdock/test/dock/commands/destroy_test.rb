@@ -144,27 +144,27 @@ class Dock::Commands::DestroyTest < Minitest::Test
     end
   end
 
-  def test_in_place_dock_removes_only_dot_dock_and_leaves_workroom
+  def test_in_place_dock_removes_only_dot_dock_and_leaves_worktree
     with_dock_config do |config, project_dir|
-      slug = 'my-workroom'
-      wt = File.join(File.dirname(project_dir), 'My_Workroom')
+      slug = 'my-worktree'
+      wt = File.join(File.dirname(project_dir), 'My_Worktree')
       write_valid_dock(config, wt, slug, 'in_place' => true)
       File.write(File.join(wt, 'keep.txt'), 'x')
       stub_teardown(slug, wt)
 
       out, = capture_io { Dock::Commands::Destroy.new(config: config).call(slug) }
 
-      assert File.directory?(wt), 'workroom folder must survive'
+      assert File.directory?(wt), 'worktree folder must survive'
       assert File.exist?(File.join(wt, 'keep.txt'))
       refute File.exist?(File.join(wt, '.dock')), '.dock should be removed'
-      assert_match(/Workroom left untouched/, out)
+      assert_match(/Worktree left untouched/, out)
     end
   end
 
   def test_in_place_dock_found_via_slug_marker_when_containers_are_gone
     with_dock_config do |config, project_dir|
-      slug = 'my-workroom'
-      wt = File.join(File.dirname(project_dir), 'My_Workroom')
+      slug = 'my-worktree'
+      wt = File.join(File.dirname(project_dir), 'My_Worktree')
       write_valid_dock(config, wt, slug, 'in_place' => true)
       File.write(File.join(wt, config.slug_marker_filename), slug)
       Dock::Workspace.stubs(:linked_worktree).returns({ root: wt, main_root: project_dir })

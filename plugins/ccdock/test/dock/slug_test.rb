@@ -116,7 +116,7 @@ class Dock::SlugTest < Minitest::Test
   end
 
   def test_from_directory_normalises_folder_name
-    assert_equal 'docks-in-workroom', Dock::Slug.from_directory('/x/Docks_In_Workroom')
+    assert_equal 'docks-in-worktree', Dock::Slug.from_directory('/x/Docks_In_Worktree')
     assert_equal 'sc-123-foo', Dock::Slug.from_directory('/x/sc-123-foo')
   end
 

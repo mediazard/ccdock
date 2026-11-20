@@ -3,7 +3,7 @@
 ## 0.4.0 — 2026-11-20
 
 **In-place docks.** Run `/dock` from inside an existing linked git worktree
-(e.g. a Conductor or Orca workroom) and that worktree becomes the dock. No new
+(e.g. a Conductor or Orca worktree) and that worktree becomes the dock. No new
 worktree is created.
 
 - Slug is the folder name (normalised). `<input>` is optional and ignored.
@@ -12,8 +12,8 @@ worktree is created.
   volume clone are skipped, and the Caddy route is replaced.
 - `/docks` and `/undock` find docks through the compose `working_dir` label,
   with the old `<worktree_dir>/<slug>` path as fallback.
-- `/undock` on an in-place dock removes only `<workroom>/.dock/`, never the
-  workroom folder.
+- `/undock` on an in-place dock removes only `<worktree>/.dock/`, never the
+  worktree folder.
 - `.dock/.gitignore` (`*`) is written so dock state is never committed.
 
 ## 0.3.0 — 2026-06-02

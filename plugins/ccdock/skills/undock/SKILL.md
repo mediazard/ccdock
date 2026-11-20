@@ -22,7 +22,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/cli destroy <slug>
 5. Removes each `<slug>_<basename>` volume listed in `clone_volumes` (these were created outside compose, so `down -v` doesn't catch them).
 6. Deletes the Caddy wildcard route by ID.
 7. Removes `~/.claude/docks/inbox/<slug>.jsonl`.
-8. Leaves the workspace directory intact for review. For an in-place dock (started inside an existing worktree) it removes only `<workroom>/.dock/`; the workroom folder is never deleted.
+8. Leaves the workspace directory intact for review. For an in-place dock (started inside an existing worktree) it removes only `<worktree>/.dock/`; the worktree folder is never deleted.
 
 ## Safety guards
 

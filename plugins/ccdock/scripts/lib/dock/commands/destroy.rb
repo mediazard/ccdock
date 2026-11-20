@@ -52,7 +52,7 @@ module Dock
       def announce_destroyed(slug, workspace_path, in_place:)
         if in_place
           FileUtils.rm_rf(File.join(workspace_path, '.dock'))
-          return say "Dock '#{slug}' destroyed. Workroom left untouched at #{workspace_path}."
+          return say "Dock '#{slug}' destroyed. Worktree left untouched at #{workspace_path}."
         end
 
         say "Dock '#{slug}' destroyed. Workspace dir left at #{workspace_path}; " \

@@ -161,17 +161,17 @@ class Dock::Commands::StartTest < Minitest::Test
       Dock::Workspace.expects(:create).never
       cmd.expects(:run_dump_pipeline!).once
       order = sequence('caddy')
-      Dock::Caddy.expects(:delete_route).with(slug: 'my-workroom').in_sequence(order)
+      Dock::Caddy.expects(:delete_route).with(slug: 'my-worktree').in_sequence(order)
       Dock::Caddy.expects(:register_wildcard).in_sequence(order).returns('ws')
 
       capture_io { cmd.call('ignored input') }
 
       metadata = JSON.parse(File.read(File.join(wt, config.metadata_filename)))
-      assert_equal 'my-workroom', metadata['slug']
+      assert_equal 'my-worktree', metadata['slug']
       assert_equal config.project_root, metadata['parent_dir']
       assert_equal wt, metadata['workspace_path']
       assert_equal true, metadata['in_place']
-      assert_match(/^COMPOSE_PROJECT_NAME=my-workroom$/, File.read(File.join(wt, '.env')))
+      assert_match(/^COMPOSE_PROJECT_NAME=my-worktree$/, File.read(File.join(wt, '.env')))
       assert_equal "*\n", File.read(File.join(wt, '.dock', '.gitignore'))
     end
   end
@@ -190,7 +190,7 @@ class Dock::Commands::StartTest < Minitest::Test
   def test_in_place_rerun_when_only_volumes_remain_after_compose_down
     with_in_place do |_config, _wt, cmd|
       Dock::Docker.stubs(:project_working_dir).returns(nil)
-      Dock::Docker.stubs(:project_volumes).returns(['my-workroom_postgres'])
+      Dock::Docker.stubs(:project_volumes).returns(['my-worktree_postgres'])
       cmd.expects(:run_dump_pipeline!).never
 
       out, = capture_io { cmd.call }
@@ -205,7 +205,7 @@ class Dock::Commands::StartTest < Minitest::Test
 
       _, err = capture_subprocess_io_with_exit { cmd.call }
       assert_match(/already used/, err)
-      assert_match(/docker compose -p my-workroom down -v/, err)
+      assert_match(/docker compose -p my-worktree down -v/, err)
     end
   end
 
@@ -227,7 +227,7 @@ class Dock::Commands::StartTest < Minitest::Test
 
   # Builds <outer>/<folder> as the linked worktree, with .env in the project
   # root, and stubs every external interaction. Yields (config, wt, cmd).
-  def with_in_place(folder: 'My_Workroom', **overrides)
+  def with_in_place(folder: 'My_Worktree', **overrides)
     with_dock_config(**overrides) do |config, project_dir|
       FileUtils.mkdir_p(File.dirname(config.dump_path))
       File.write(config.dump_path, 'gz-bytes')

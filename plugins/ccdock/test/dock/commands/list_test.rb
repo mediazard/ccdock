@@ -48,8 +48,8 @@ class Dock::Commands::ListTest < Minitest::Test
 
   def test_finds_in_place_dock_outside_worktree_dir_via_working_dir_label
     with_dock_config do |config, project_dir|
-      slug = 'my-workroom'
-      wt = File.join(File.dirname(project_dir), 'My_Workroom')
+      slug = 'my-worktree'
+      wt = File.join(File.dirname(project_dir), 'My_Worktree')
       FileUtils.mkdir_p(File.join(wt, '.dock'))
       File.write(File.join(wt, config.metadata_filename), JSON.pretty_generate('slug' => slug, 'url' => 'https://x'))
       Dock::Docker.stubs(:project_working_dir).with(project: slug).returns(wt)

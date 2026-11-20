@@ -19,9 +19,9 @@ If the slug already exists, a numeric suffix is appended (`sc-12345-1`, `sc-1234
 
 ## In-place mode
 
-If you run `/dock` from inside an existing linked git worktree (a workroom made by Conductor, Orca, or `git worktree add`), that worktree is docked in place:
+If you run `/dock` from inside an existing linked git worktree (made by Orca, Conductor, `git worktree add`, or any other tool), that worktree is docked in place:
 
-- No worktree is created. The slug is the folder name, normalised (`My_Workroom` becomes `my-workroom`).
+- No worktree is created. The slug is the folder name, normalised (`My_Worktree` becomes `my-worktree`).
 - `<input>` is optional and ignored.
 - `.dock.yml` and the dump are read from the main checkout.
 - Reruns are safe. If the stack already exists, the dump restore is skipped.

@@ -100,7 +100,7 @@ db_name: my_app_development   # pg_dump source + restore target
 
 ### In-place mode
 
-Run `/dock` from inside an existing linked git worktree (a Conductor or Orca workroom, or one made with `git worktree add`) and ccdock docks that worktree in place instead of creating a new one. The slug is the folder name, `.dock.yml` and the dump come from the main checkout, and `/undock` removes only the `.dock/` folder, never the workroom.
+Run `/dock` from inside an existing linked git worktree (a Conductor or Orca worktree, or one made with `git worktree add`) and ccdock docks that worktree in place instead of creating a new one. The slug is the folder name, `.dock.yml` and the dump come from the main checkout, and `/undock` removes only the `.dock/` folder, never the worktree.
 
 ### Compose requirements
 
