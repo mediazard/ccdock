@@ -49,13 +49,6 @@ module Dock
 
       private
 
-      def refuse_reserved!(slug)
-        reserved = (@config.reserved_slugs + [@config.project_name, @config.base_project]).compact
-        return unless reserved.include?(slug)
-
-        abort_with "Refusing: '#{slug}' is reserved (main project name or in reserved_slugs)."
-      end
-
       def guard_volumes!(slug)
         volumes = Docker.project_volumes(project: slug)
         bad = volumes.reject { |v| v.start_with?("#{slug}_") }

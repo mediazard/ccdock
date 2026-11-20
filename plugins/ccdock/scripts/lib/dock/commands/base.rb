@@ -33,6 +33,19 @@ module Dock
         warn(message)
         exit 1
       end
+
+      # Where a dock's workspace lives: the directory its compose project was
+      # started from (covers in-place docks), else the configured worktree dir.
+      def dock_workspace_path(slug)
+        Docker.project_working_dir(project: slug) || @config.workspace_path_for(slug)
+      end
+
+      def refuse_reserved!(slug)
+        reserved = (@config.reserved_slugs + [@config.project_name, @config.base_project]).compact
+        return unless reserved.include?(slug)
+
+        abort_with "Refusing: '#{slug}' is reserved (main project name or in reserved_slugs)."
+      end
     end
   end
 end
