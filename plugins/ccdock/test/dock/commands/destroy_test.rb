@@ -5,6 +5,7 @@ require_relative '../../test_helper'
 class Dock::Commands::DestroyTest < Minitest::Test
   def setup
     Dock::Docker.stubs(:project_working_dir).returns(nil)
+    Dock::Workspace.stubs(:linked_worktree).returns(nil)
   end
 
   def teardown
@@ -157,6 +158,23 @@ class Dock::Commands::DestroyTest < Minitest::Test
       assert File.exist?(File.join(wt, 'keep.txt'))
       refute File.exist?(File.join(wt, '.dock')), '.dock should be removed'
       assert_match(/Workroom left untouched/, out)
+    end
+  end
+
+  def test_in_place_dock_found_via_slug_marker_when_containers_are_gone
+    with_dock_config do |config, project_dir|
+      slug = 'my-workroom'
+      wt = File.join(File.dirname(project_dir), 'My_Workroom')
+      write_valid_dock(config, wt, slug, 'in_place' => true)
+      File.write(File.join(wt, config.slug_marker_filename), slug)
+      Dock::Workspace.stubs(:linked_worktree).returns({ root: wt, main_root: project_dir })
+      stub_teardown(slug, wt)
+      Dock::Docker.stubs(:project_working_dir).returns(nil)
+
+      capture_io { Dock::Commands::Destroy.new(config: config).call(slug) }
+
+      assert File.directory?(wt)
+      refute File.exist?(File.join(wt, '.dock'))
     end
   end
 

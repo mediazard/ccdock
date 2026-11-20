@@ -187,6 +187,17 @@ class Dock::Commands::StartTest < Minitest::Test
     end
   end
 
+  def test_in_place_rerun_when_only_volumes_remain_after_compose_down
+    with_in_place do |_config, _wt, cmd|
+      Dock::Docker.stubs(:project_working_dir).returns(nil)
+      Dock::Docker.stubs(:project_volumes).returns(['my-workroom_postgres'])
+      cmd.expects(:run_dump_pipeline!).never
+
+      out, = capture_io { cmd.call }
+      assert_match(/Existing dock stack found/, out)
+    end
+  end
+
   def test_in_place_aborts_when_slug_is_used_by_a_dock_elsewhere
     with_in_place do |_config, _wt, cmd|
       Dock::Docker.stubs(:project_working_dir).returns('/somewhere/else')
@@ -194,6 +205,7 @@ class Dock::Commands::StartTest < Minitest::Test
 
       _, err = capture_subprocess_io_with_exit { cmd.call }
       assert_match(/already used/, err)
+      assert_match(/docker compose -p my-workroom down -v/, err)
     end
   end
 
@@ -225,6 +237,7 @@ class Dock::Commands::StartTest < Minitest::Test
 
       Dock::Workspace.stubs(:linked_worktree).returns({ root: wt, main_root: project_dir })
       Dock::Docker.stubs(:project_working_dir).returns(nil)
+      Dock::Docker.stubs(:project_volumes).returns([])
       Dock::Docker.stubs(:compose).returns(nil)
       Dock::Docker.stubs(:service_status).returns({ 'Health' => 'healthy' })
       Dock::Docker.stubs(:try_clone_volume).returns(:cloned)

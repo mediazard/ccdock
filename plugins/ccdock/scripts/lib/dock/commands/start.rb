@@ -64,12 +64,14 @@ module Dock
 
         existing = Docker.project_working_dir(project: slug)
         if existing && !File.identical?(existing, workspace_path)
-          abort_with "Slug '#{slug}' is already used by a dock at #{existing}"
+          abort_with "Slug '#{slug}' is already used by a dock at #{existing}. " \
+                     "If that folder is gone, run: docker compose -p #{slug} down -v"
         end
 
         say "Docking in place at #{workspace_path} as '#{slug}'"
         say "  (input #{input.inspect} is ignored in a linked worktree)" unless input.to_s.strip.empty?
-        [slug, !existing.nil?]
+        # Volumes outlive `compose down`; restoring into them again would fail.
+        [slug, !existing.nil? || Docker.project_volumes(project: slug).any?]
       end
 
       def provision_worktree(workspace_path)

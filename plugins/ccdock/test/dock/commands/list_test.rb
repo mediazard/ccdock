@@ -5,6 +5,7 @@ require_relative '../../test_helper'
 class Dock::Commands::ListTest < Minitest::Test
   def setup
     Dock::Docker.stubs(:project_working_dir).returns(nil)
+    Dock::Workspace.stubs(:linked_worktree).returns(nil)
   end
 
   def test_prints_empty_message_when_no_compose_projects
