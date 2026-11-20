@@ -114,4 +114,19 @@ class Dock::SlugTest < Minitest::Test
     refute_includes Dock::Slug.base_slug('../../etc'), '/'
     refute_includes Dock::Slug.base_slug('../../etc'), '.'
   end
+
+  def test_from_directory_normalises_folder_name
+    assert_equal 'docks-in-workroom', Dock::Slug.from_directory('/x/Docks_In_Workroom')
+    assert_equal 'sc-123-foo', Dock::Slug.from_directory('/x/sc-123-foo')
+  end
+
+  def test_from_directory_caps_length_without_trailing_dash
+    slug = Dock::Slug.from_directory("/x/#{('a' * 62)}_bbbb")
+    assert_operator slug.length, :<=, 63
+    refute slug.end_with?('-')
+  end
+
+  def test_from_directory_raises_when_nothing_usable
+    assert_raises(Dock::Slug::InvalidSlugError) { Dock::Slug.from_directory('/x/___') }
+  end
 end
