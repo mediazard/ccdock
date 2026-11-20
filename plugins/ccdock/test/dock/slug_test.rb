@@ -121,7 +121,7 @@ class Dock::SlugTest < Minitest::Test
   end
 
   def test_from_directory_caps_length_without_trailing_dash
-    slug = Dock::Slug.from_directory("/x/#{('a' * 62)}_bbbb")
+    slug = Dock::Slug.from_directory("/x/#{'a' * 62}_bbbb")
     assert_operator slug.length, :<=, 63
     refute slug.end_with?('-')
   end

@@ -215,7 +215,7 @@ module Dock
         abort_with "Dump restore failed for '#{slug}'"
       end
 
-      def write_workspace_state(workspace_path, slug:, web_port:, description:, input:, in_place:)
+      def write_workspace_state(workspace_path, slug:, web_port:, description:, input:, in_place:) # rubocop:disable Metrics/ParameterLists
         FileUtils.mkdir_p(File.join(workspace_path, '.dock'))
 
         created_at = Time.now.utc.iso8601

@@ -44,16 +44,20 @@ module Dock
         Caddy.delete_route(slug: slug)
         Inbox.remove(slug: slug, config: @config)
 
-        if metadata['in_place']
-          FileUtils.rm_rf(File.join(workspace_path, '.dock'))
-          say "Dock '#{slug}' destroyed. Workroom left untouched at #{workspace_path}."
-        else
-          say "Dock '#{slug}' destroyed. Workspace dir left at #{workspace_path}; " \
-              'run `jj workspace forget` (or `git worktree remove`) separately.'
-        end
+        announce_destroyed(slug, workspace_path, in_place: metadata['in_place'])
       end
 
       private
+
+      def announce_destroyed(slug, workspace_path, in_place:)
+        if in_place
+          FileUtils.rm_rf(File.join(workspace_path, '.dock'))
+          return say "Dock '#{slug}' destroyed. Workroom left untouched at #{workspace_path}."
+        end
+
+        say "Dock '#{slug}' destroyed. Workspace dir left at #{workspace_path}; " \
+            'run `jj workspace forget` (or `git worktree remove`) separately.'
+      end
 
       def guard_volumes!(slug)
         volumes = Docker.project_volumes(project: slug)
