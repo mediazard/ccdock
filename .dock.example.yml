@@ -2,7 +2,7 @@
 # ccdock walks up from cwd looking for it; first match wins.
 #
 # Required keys (everything else is optional with sensible generic defaults):
-#   project_name, base_host, db_name
+#   project_name, base_host
 
 # The docker compose project name your project uses for `main` (the long-running
 # stack you run locally outside ccdock). Typically the project directory basename.
@@ -16,20 +16,7 @@ project_name: my-app
 # workspace at `*.sc-12345-dev.localhost`.
 base_host: dev.localhost
 
-# Database to dump (via /dock-dump) and restore (per workspace on /dock).
-db_name: my_app_development
-
 # --- Optional below this line ---
-
-# Postgres role used for pg_dump + psql restore. Default: postgres.
-# db_user: postgres
-
-# Compose service name of postgres. Default: postgres.
-# db_service: postgres
-
-# Where the pre-generated dump file lives, relative to project root.
-# Default: tmp/dock-dump.sql.gz.
-# dump_path: tmp/dock-dump.sql.gz
 
 # Where workspace worktrees are created (relative to project root's parent).
 # Default: <project_name>.worktrees (sibling of project root).
