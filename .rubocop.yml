@@ -3,7 +3,7 @@ AllCops:
   TargetRubyVersion: 3.0
   SuggestExtensions: false
   Exclude:
-    - 'test/**/*'
+    - '**/test/**/*'
 
 Style/Documentation:
   Enabled: false
