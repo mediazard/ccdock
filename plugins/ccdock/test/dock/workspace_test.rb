@@ -61,4 +61,45 @@ class Dock::WorkspaceTest < Minitest::Test
       assert_raises(Dock::WorkspaceError) { Dock::Workspace.create(path) }
     end
   end
+
+  # ---- linked_worktree (real git in a tmp dir) -------------------------------
+
+  def test_linked_worktree_detects_root_and_main_root_from_worktree_and_subfolder
+    with_git_worktree do |main, wt|
+      sub = File.join(wt, 'sub')
+      FileUtils.mkdir_p(sub)
+      [wt, sub].each do |start|
+        result = Dock::Workspace.linked_worktree(start)
+        assert_equal File.realpath(wt), File.realpath(result[:root])
+        assert_equal File.realpath(main), File.realpath(result[:main_root])
+      end
+    end
+  end
+
+  def test_linked_worktree_nil_from_main_checkout
+    with_git_worktree { |main, _wt| assert_nil Dock::Workspace.linked_worktree(main) }
+  end
+
+  def test_linked_worktree_nil_outside_a_repo
+    Dir.mktmpdir('ccdock-test-norepo-') do |dir|
+      assert_nil Dock::Workspace.linked_worktree(dir)
+    end
+  end
+
+  private
+
+  def with_git_worktree
+    skip 'git not available' unless system('git', '--version', out: File::NULL, err: File::NULL)
+
+    Dir.mktmpdir('ccdock-test-git-') do |outer|
+      main = File.join(outer, 'main')
+      wt = File.join(outer, 'wt')
+      FileUtils.mkdir_p(main)
+      git = ['git', '-c', 'user.email=t@example.com', '-c', 'user.name=t']
+      system('git', 'init', '-q', main, out: File::NULL, err: File::NULL)
+      system(*git, '-C', main, 'commit', '-q', '--allow-empty', '-m', 'init', out: File::NULL, err: File::NULL)
+      system('git', '-C', main, 'worktree', 'add', '-q', wt, out: File::NULL, err: File::NULL)
+      yield main, wt
+    end
+  end
 end
