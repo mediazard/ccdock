@@ -47,6 +47,18 @@ module Dock
       out.split("\n").map(&:strip).reject(&:empty?)
     end
 
+    # @return [String, nil] directory the compose project was started from, read
+    #   from the working_dir label on its containers; nil if none exist
+    def project_working_dir(project:)
+      out, _err, status = Open3.capture3(
+        'docker', 'ps', '-a', '--filter', "label=com.docker.compose.project=#{project}",
+        '--format', '{{.Label "com.docker.compose.project.working_dir"}}'
+      )
+      return nil unless status.success?
+
+      out.lines.map(&:strip).find { |line| !line.empty? }
+    end
+
     # @return [Integer, nil] dynamic host port mapped to <service>:<container_port>
     def published_port(project:, service:, container_port:)
       out, _err, status = Open3.capture3(
