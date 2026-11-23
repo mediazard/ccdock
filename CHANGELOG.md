@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 — 2026-11-23
+
+- Fix: in-place slug could make a DNS label over 63 chars (`ERR_NAME_NOT_RESOLVED`).
+  A ticket id in the folder name (`sc-123`, `story-123`) now gives slug `sc-123`.
+  Other names are truncated so `<slug>-<base_host first label>` fits in 63 chars.
+- Fix: private git gems failed to install. When the host SSH agent has a key,
+  ccdock now runs `docker compose build --ssh default web worker` before `up`.
+
 ## 0.5.0 — 2026-11-20
 
 **BREAKING: SQL dump support removed.** ccdock no longer touches the database.

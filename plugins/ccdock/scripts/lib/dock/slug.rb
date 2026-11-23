@@ -15,6 +15,8 @@ module Dock
     ADJECTIVES = %w[happy swift brave calm eager bright keen bold cosy lively].freeze
     NOUNS = %w[otter falcon badger lynx raven fox heron stoat marten ibis].freeze
     TICKET_PATTERN = /\b(sc-\d+)\b/i
+    DIRECTORY_TICKET_PATTERN = /\b(?:sc|story)-(\d+)\b/i
+    MAX_DNS_LABEL = 63
     SLUG_CHARS = /\A[a-z0-9][a-z0-9-]{0,62}\z/
 
     class InvalidSlugError < Dock::Error; end
@@ -46,13 +48,26 @@ module Dock
       ensure_unique(base, config: config)
     end
 
-    # Slug for a dock that lives in an existing folder (in-place mode): the
-    # folder's basename, normalised. No ticket extraction, no uniqueness suffix.
+    # Slug for a dock that lives in an existing folder (in-place mode): a ticket
+    # id in the folder name (`sc-123` or `story-123`) wins; otherwise the
+    # normalised basename, truncated so the `<slug>-<base_host label>` DNS label
+    # stays within 63 chars. No uniqueness suffix.
+    # @param config [Dock::Config]
     # @return [String] a filesystem-safe slug
     # @raise [InvalidSlugError] if nothing usable is left of the name
-    def from_directory(path)
-      normalized = File.basename(path).downcase.gsub(/[^a-z0-9-]+/, '-').gsub(/-+/, '-').gsub(/\A-|-\z/, '')
-      validate!(normalized[0, 63].sub(/-+\z/, ''))
+    def from_directory(path, config:)
+      name = File.basename(path)
+      if (match = DIRECTORY_TICKET_PATTERN.match(name))
+        return validate!("sc-#{match[1]}")
+      end
+
+      normalized = name.downcase.gsub(/[^a-z0-9-]+/, '-').gsub(/-+/, '-').gsub(/\A-|-\z/, '')
+      validate!(normalized[0, max_slug_length(config)].sub(/-+\z/, ''))
+    end
+
+    # Longest slug whose host label `<slug>-<first label of base_host>` fits in 63 chars.
+    def max_slug_length(config)
+      MAX_DNS_LABEL - 1 - config.base_host.split('.').first.length
     end
 
     def base_slug(input)

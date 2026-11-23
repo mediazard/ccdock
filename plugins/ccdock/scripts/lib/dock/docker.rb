@@ -69,6 +69,14 @@ module Dock
       out.strip.split(':').last&.to_i
     end
 
+    # @return [Boolean] true if the host SSH agent holds at least one key
+    def ssh_agent_ready?
+      _out, _err, status = Open3.capture3('ssh-add', '-l')
+      status.success?
+    rescue SystemCallError
+      false
+    end
+
     # Run `docker compose -p <project> <args...>`. Inherits stdio.
     def compose(project:, args:, env: {})
       cleaned_env = clean_env.merge(env)

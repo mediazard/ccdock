@@ -98,7 +98,11 @@ base_host: dev.localhost      # workspaces reachable at *.<slug>-<base_host>
 
 ### In-place mode
 
-Run `/dock` from inside an existing linked git worktree (a Conductor or Orca worktree, or one made with `git worktree add`) and ccdock docks that worktree in place instead of creating a new one. The slug is the folder name, `.dock.yml` comes from the main checkout, and `/undock` removes only the `.dock/` folder, never the worktree.
+Run `/dock` from inside an existing linked git worktree (a Conductor or Orca worktree, or one made with `git worktree add`) and ccdock docks that worktree in place instead of creating a new one. The slug is the folder name (or `sc-NNNNN` if the name holds a ticket id), `.dock.yml` comes from the main checkout, and `/undock` removes only the `.dock/` folder, never the worktree.
+
+### Private git gems
+
+If your host SSH agent has a key (`ssh-add -l` succeeds), ccdock builds `web` and `worker` with `docker compose build --ssh default` before starting them, so a Dockerfile using `RUN --mount=type=ssh` can fetch private gems. With no agent key, the build runs as before.
 
 ### Compose requirements
 

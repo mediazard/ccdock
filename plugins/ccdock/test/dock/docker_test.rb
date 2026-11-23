@@ -3,6 +3,23 @@
 require_relative '../test_helper'
 
 class Dock::DockerTest < Minitest::Test
+  # ---- ssh_agent_ready? ------------------------------------------------------
+
+  def test_ssh_agent_ready_true_when_ssh_add_lists_a_key
+    Open3.expects(:capture3).with('ssh-add', '-l').returns(['256 SHA256:x key (ED25519)', '', mock_success_status])
+    assert Dock::Docker.ssh_agent_ready?
+  end
+
+  def test_ssh_agent_ready_false_when_ssh_add_fails
+    Open3.expects(:capture3).with('ssh-add', '-l').returns(['', 'no identities', mock_failure_status])
+    refute Dock::Docker.ssh_agent_ready?
+  end
+
+  def test_ssh_agent_ready_false_when_ssh_add_missing
+    Open3.expects(:capture3).with('ssh-add', '-l').raises(Errno::ENOENT)
+    refute Dock::Docker.ssh_agent_ready?
+  end
+
   # ---- volume_exists? / clone_volume ----------------------------------------
 
   def test_volume_exists_true_when_docker_returns_name

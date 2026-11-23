@@ -22,6 +22,7 @@ class Dock::Commands::StartTest < Minitest::Test
         true
       end
       Dock::Docker.stubs(:compose).returns(nil)
+      Dock::Docker.stubs(:ssh_agent_ready?).returns(false)
       Dock::Docker.stubs(:service_status).returns({ 'Health' => 'healthy' })
       Dock::Docker.stubs(:try_clone_volume).returns(:cloned)
       Dock::Docker.stubs(:published_port).returns(49_162)
@@ -181,10 +182,50 @@ class Dock::Commands::StartTest < Minitest::Test
     end
   end
 
+  def test_in_place_uses_ticket_slug_for_long_story_folder
+    folder = 'story-19531-allow-existing-clients-therapy-psychiatry-to-book-ongoing-' \
+             'appointments-from-the-client-portal'
+    with_in_place(folder: folder) do |config, wt, cmd|
+      File.write(File.join(config.project_root, '.env.local'), "BAR=1\n")
+      capture_io { cmd.call }
+
+      metadata = JSON.parse(File.read(File.join(wt, config.metadata_filename)))
+      assert_equal 'sc-19531', metadata['slug']
+      assert_equal "https://app.sc-19531-#{config.base_host}", metadata['url']
+      assert_match(/^HOST_DOMAIN=sc-19531-#{Regexp.escape(config.base_host)}$/, File.read(File.join(wt, '.env.local')))
+    end
+  end
+
   def test_in_place_works_without_input
     with_in_place do |config, wt, cmd|
       capture_io { cmd.call(nil) }
       assert File.exist?(File.join(wt, config.metadata_filename))
+    end
+  end
+
+  # ---- SSH build -------------------------------------------------------------
+
+  def test_builds_with_ssh_before_up_when_agent_ready
+    with_in_place do |_config, _wt, cmd|
+      Dock::Docker.stubs(:ssh_agent_ready?).returns(true)
+      order = sequence('compose')
+      Dock::Docker.expects(:compose).with(project: 'my-worktree', args: %w[up -d postgres redis]).in_sequence(order)
+      Dock::Docker.expects(:compose).with(project: 'my-worktree', args: %w[build --ssh default web worker])
+                  .in_sequence(order)
+      Dock::Docker.expects(:compose).with(project: 'my-worktree', args: %w[up -d web worker]).in_sequence(order)
+
+      capture_io { cmd.call }
+    end
+  end
+
+  def test_skips_explicit_build_when_no_ssh_agent_key
+    with_in_place do |_config, _wt, cmd|
+      Dock::Docker.stubs(:ssh_agent_ready?).returns(false)
+      Dock::Docker.expects(:compose).with(project: 'my-worktree', args: %w[up -d postgres redis])
+      Dock::Docker.expects(:compose).with(project: 'my-worktree', args: %w[up -d web worker])
+      Dock::Docker.expects(:compose).with(has_entry(args: %w[build --ssh default web worker])).never
+
+      capture_io { cmd.call }
     end
   end
 
@@ -202,6 +243,7 @@ class Dock::Commands::StartTest < Minitest::Test
       Dock::Docker.stubs(:project_working_dir).returns(nil)
       Dock::Docker.stubs(:project_volumes).returns([])
       Dock::Docker.stubs(:compose).returns(nil)
+      Dock::Docker.stubs(:ssh_agent_ready?).returns(false)
       Dock::Docker.stubs(:service_status).returns({ 'Health' => 'healthy' })
       Dock::Docker.stubs(:try_clone_volume).returns(:cloned)
       Dock::Docker.stubs(:published_port).returns(49_162)
