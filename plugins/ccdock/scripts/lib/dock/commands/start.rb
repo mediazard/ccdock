@@ -56,7 +56,7 @@ module Dock
       # its folder name; an existing compose project from there means a rerun.
       # @return [Array(String, Boolean)] slug, rerun
       def resolve_in_place(workspace_path, input:)
-        slug = Slug.from_directory(workspace_path)
+        slug = Slug.from_directory(workspace_path, config: @config)
         refuse_reserved!(slug)
 
         existing = Docker.project_working_dir(project: slug)
@@ -148,6 +148,9 @@ module Dock
       end
 
       def bring_up_app_services(slug)
+        # Compose builds implicitly without SSH, so private git gems would fail.
+        # Build with the host agent's keys first when it has any.
+        Docker.compose(project: slug, args: %w[build --ssh default web worker]) if Docker.ssh_agent_ready?
         Docker.compose(project: slug, args: %w[up -d web worker])
       end
 

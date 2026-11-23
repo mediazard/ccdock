@@ -21,7 +21,7 @@ If the slug already exists, a numeric suffix is appended (`sc-12345-1`, `sc-1234
 
 If you run `/dock` from inside an existing linked git worktree (made by Orca, Conductor, `git worktree add`, or any other tool), that worktree is docked in place:
 
-- No worktree is created. The slug is the folder name, normalised (`My_Worktree` becomes `my-worktree`).
+- No worktree is created. The slug is the folder name, normalised (`My_Worktree` becomes `my-worktree`). If the name holds a ticket id (`sc-12345` or `story-12345`), the slug is `sc-12345`. Other long names are cut so `<slug>-<base_host first label>` stays within the 63-char DNS label limit.
 - `<input>` is optional and ignored.
 - `.dock.yml` is read from the main checkout.
 - Reruns are safe. If the stack already exists, the volume clone is skipped.
@@ -34,7 +34,7 @@ If you run `/dock` from inside an existing linked git worktree (made by Orca, Co
 3. Sed-modifies the copied env files for workspace identity (COMPOSE_PROJECT_NAME, HOST_DOMAIN, dynamic ports).
 4. Brings up postgres + redis.
 5. Clones any volumes listed in `clone_volumes` (empty by default — relies on the image build).
-6. Brings up web + worker. The app's entrypoint (e.g. Rails `db:prepare`) creates and seeds the DB. ccdock does nothing database-specific.
+6. Builds web + worker with `--ssh default` when the host SSH agent has a key (`ssh-add -l`), so private git gems can be fetched. Then brings up web + worker. The app's entrypoint (e.g. Rails `db:prepare`) creates and seeds the DB. ccdock does nothing database-specific.
 7. Polls web health.
 8. Registers a Caddy wildcard route at `*.<slug>-<base_host>`.
 9. Writes `.dock/{metadata.json, fingerprint, slug}` in the workspace.

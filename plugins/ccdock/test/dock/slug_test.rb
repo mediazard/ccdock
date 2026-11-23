@@ -115,18 +115,38 @@ class Dock::SlugTest < Minitest::Test
     refute_includes Dock::Slug.base_slug('../../etc'), '.'
   end
 
+  LONG_TICKET_FOLDER = 'story-19531-allow-existing-clients-therapy-psychiatry-to-book-ongoing-' \
+                       'appointments-from-the-client-portal'
+
   def test_from_directory_normalises_folder_name
-    assert_equal 'docks-in-worktree', Dock::Slug.from_directory('/x/Docks_In_Worktree')
-    assert_equal 'sc-123-foo', Dock::Slug.from_directory('/x/sc-123-foo')
+    with_dock_config(base_host: 'bert.localhost') do |config|
+      assert_equal 'docks-in-worktree', Dock::Slug.from_directory('/x/Docks_In_Worktree', config: config)
+      assert_equal 'sc-123', Dock::Slug.from_directory('/x/sc-123-foo', config: config)
+    end
   end
 
-  def test_from_directory_caps_length_without_trailing_dash
-    slug = Dock::Slug.from_directory("/x/#{'a' * 62}_bbbb")
-    assert_operator slug.length, :<=, 63
-    refute slug.end_with?('-')
+  def test_from_directory_extracts_ticket_from_long_story_folder
+    with_dock_config(base_host: 'bert.localhost') do |config|
+      assert_equal 'sc-19531', Dock::Slug.from_directory("/x/#{LONG_TICKET_FOLDER}", config: config)
+    end
+  end
+
+  def test_from_directory_extracts_ticket_embedded_in_name
+    with_dock_config(base_host: 'bert.localhost') do |config|
+      assert_equal 'sc-123', Dock::Slug.from_directory('/x/foo-sc-123-bar', config: config)
+    end
+  end
+
+  def test_from_directory_caps_label_length_without_trailing_dash
+    with_dock_config(base_host: 'bert.localhost') do |config|
+      slug = Dock::Slug.from_directory("/x/#{'a' * 50}_bbbbbbbbbbbbbbbbbbbb", config: config)
+      label = "#{slug}-bert"
+      assert_operator label.length, :<=, 63
+      refute slug.end_with?('-')
+    end
   end
 
   def test_from_directory_raises_when_nothing_usable
-    assert_raises(Dock::Slug::InvalidSlugError) { Dock::Slug.from_directory('/x/___') }
+    with_dock_config { |config| assert_raises(Dock::Slug::InvalidSlugError) { Dock::Slug.from_directory('/x/___', config: config) } }
   end
 end
