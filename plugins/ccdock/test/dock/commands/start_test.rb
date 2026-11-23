@@ -12,22 +12,8 @@ class Dock::Commands::StartTest < Minitest::Test
     WebMock.reset!
   end
 
-  def test_aborts_when_dump_file_is_missing
-    with_dock_config do |config|
-      cmd = Dock::Commands::Start.new(config: config)
-      _, err = capture_subprocess_io_with_exit do
-        cmd.call('sc-1')
-      end
-      assert_match(/Run \/dock-dump/, err)
-    end
-  end
-
   def test_happy_path_invokes_full_pipeline_and_writes_workspace_state
     with_dock_config do |config|
-      # Pre-populate the dump file so ensure_dump_present! passes.
-      FileUtils.mkdir_p(File.dirname(config.dump_path))
-      File.write(config.dump_path, 'gz-bytes')
-
       # Stub every external interaction.
       Dock::Workspace.stubs(:already_present?).returns(false)
       # Stub workspace creation to just `mkdir -p` — Dir.chdir needs a real dir.
@@ -41,10 +27,7 @@ class Dock::Commands::StartTest < Minitest::Test
       Dock::Docker.stubs(:published_port).returns(49_162)
       Dock::Caddy.stubs(:register_wildcard).returns('ws-sc-1')
 
-      # Stub the raw `system` (createdb) + the shell-free dump pipeline.
       cmd = Dock::Commands::Start.new(config: config)
-      cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline!).returns(nil)
 
       capture_io { cmd.call('sc-1', description: 'fix it') }
 
@@ -69,9 +52,6 @@ class Dock::Commands::StartTest < Minitest::Test
 
   def test_aborts_when_web_port_cannot_be_resolved
     with_dock_config do |config|
-      FileUtils.mkdir_p(File.dirname(config.dump_path))
-      File.write(config.dump_path, 'gz-bytes')
-
       Dock::Workspace.stubs(:already_present?).returns(false)
       # Stub workspace creation to just `mkdir -p` — Dir.chdir needs a real dir.
       Dock::Workspace.stubs(:create).with do |path|
@@ -84,8 +64,6 @@ class Dock::Commands::StartTest < Minitest::Test
       Dock::Docker.stubs(:published_port).returns(nil)
 
       cmd = Dock::Commands::Start.new(config: config)
-      cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline!).returns(nil)
 
       _, err = capture_subprocess_io_with_exit { cmd.call('sc-1') }
       assert_match(/Could not resolve web port/, err)
@@ -94,9 +72,6 @@ class Dock::Commands::StartTest < Minitest::Test
 
   def test_clone_named_volumes_iterates_clone_volumes_config
     with_dock_config(clone_volumes: %w[node_modules bundle_cache]) do |config|
-      FileUtils.mkdir_p(File.dirname(config.dump_path))
-      File.write(config.dump_path, 'gz-bytes')
-
       Dock::Workspace.stubs(:already_present?).returns(false)
       Dock::Workspace.stubs(:create).with do |path|
         FileUtils.mkdir_p(path)
@@ -114,8 +89,6 @@ class Dock::Commands::StartTest < Minitest::Test
       end
 
       cmd = Dock::Commands::Start.new(config: config)
-      cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline!).returns(nil)
 
       capture_io { cmd.call('sc-1') }
 
@@ -131,9 +104,6 @@ class Dock::Commands::StartTest < Minitest::Test
 
   def test_clone_named_volumes_is_a_noop_when_clone_volumes_is_empty
     with_dock_config do |config| # default clone_volumes: []
-      FileUtils.mkdir_p(File.dirname(config.dump_path))
-      File.write(config.dump_path, 'gz-bytes')
-
       Dock::Workspace.stubs(:already_present?).returns(false)
       Dock::Workspace.stubs(:create).with do |path|
         FileUtils.mkdir_p(path)
@@ -147,8 +117,6 @@ class Dock::Commands::StartTest < Minitest::Test
       Dock::Docker.expects(:try_clone_volume).never
 
       cmd = Dock::Commands::Start.new(config: config)
-      cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline!).returns(nil)
 
       capture_io { cmd.call('sc-1') }
     end
@@ -159,7 +127,6 @@ class Dock::Commands::StartTest < Minitest::Test
   def test_in_place_docks_in_the_existing_worktree
     with_in_place do |config, wt, cmd|
       Dock::Workspace.expects(:create).never
-      cmd.expects(:run_dump_pipeline!).once
       order = sequence('caddy')
       Dock::Caddy.expects(:delete_route).with(slug: 'my-worktree').in_sequence(order)
       Dock::Caddy.expects(:register_wildcard).in_sequence(order).returns('ws')
@@ -176,14 +143,13 @@ class Dock::Commands::StartTest < Minitest::Test
     end
   end
 
-  def test_in_place_rerun_skips_dump_restore_and_volume_clone
+  def test_in_place_rerun_skips_volume_clone
     with_in_place(clone_volumes: %w[node_modules]) do |_config, wt, cmd|
       Dock::Docker.stubs(:project_working_dir).returns(wt)
-      cmd.expects(:run_dump_pipeline!).never
       Dock::Docker.expects(:try_clone_volume).never
 
       out, = capture_io { cmd.call }
-      assert_match(/Existing dock stack found/, out)
+      assert_match(/Existing dock stack found; skipping volume clone/, out)
     end
   end
 
@@ -191,10 +157,9 @@ class Dock::Commands::StartTest < Minitest::Test
     with_in_place do |_config, _wt, cmd|
       Dock::Docker.stubs(:project_working_dir).returns(nil)
       Dock::Docker.stubs(:project_volumes).returns(['my-worktree_postgres'])
-      cmd.expects(:run_dump_pipeline!).never
 
       out, = capture_io { cmd.call }
-      assert_match(/Existing dock stack found/, out)
+      assert_match(/Existing dock stack found; skipping volume clone/, out)
     end
   end
 
@@ -229,8 +194,6 @@ class Dock::Commands::StartTest < Minitest::Test
   # root, and stubs every external interaction. Yields (config, wt, cmd).
   def with_in_place(folder: 'My_Worktree', **overrides)
     with_dock_config(**overrides) do |config, project_dir|
-      FileUtils.mkdir_p(File.dirname(config.dump_path))
-      File.write(config.dump_path, 'gz-bytes')
       File.write(File.join(project_dir, '.env'), "FOO=1\n")
       wt = File.join(File.dirname(project_dir), folder)
       FileUtils.mkdir_p(wt)
@@ -246,8 +209,6 @@ class Dock::Commands::StartTest < Minitest::Test
       Dock::Caddy.stubs(:register_wildcard).returns('ws')
 
       cmd = Dock::Commands::Start.new(config: config)
-      cmd.stubs(:system).returns(true)
-      cmd.stubs(:run_dump_pipeline!).returns(nil)
       yield config, wt, cmd
     end
   end

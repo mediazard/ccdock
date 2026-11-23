@@ -33,10 +33,7 @@ WebMock.disable_net_connect!
 module DockTestHelpers
   DEFAULT_CONFIG = {
     'project_name' => 'demoapp',
-    'base_host' => 'dev.localhost',
-    'db_name' => 'demoapp_development',
-    'db_user' => 'postgres',
-    'db_service' => 'postgres'
+    'base_host' => 'dev.localhost'
   }.freeze
 
   # Yields a Dock::Config rooted in a fresh tmp directory containing a .dock.yml.

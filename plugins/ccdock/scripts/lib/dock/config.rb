@@ -12,21 +12,17 @@ module Dock
   # Adopting projects place a .dock.yml with at minimum:
   #   project_name: <main compose project name>
   #   base_host: <e.g. dev.localhost>
-  #   db_name: <database to dump/restore>
   #
   # Everything else is optional. Defaults assume nothing about the host
-  # project beyond "uses docker compose + postgres". Rails-specific niceties
+  # project beyond "uses docker compose". Rails-specific niceties
   # (PROJECT_NAME env var, RAILS_CADDY_DEV stripping, named-volume cloning from
   # main into the workspace) are opt-in via dedicated keys — never on by
   # default. See .dock.example.yml for the full schema.
   class Config
-    REQUIRED_KEYS = %w[project_name base_host db_name].freeze
+    REQUIRED_KEYS = %w[project_name base_host].freeze
 
     DEFAULTS = {
       'base_project' => nil,            # optional Rails-ish PROJECT_NAME env-var prefix; nil → not written
-      'db_user' => 'postgres',
-      'db_service' => 'postgres',
-      'dump_path' => 'tmp/dock-dump.sql.gz',
       'worktree_dir' => nil,            # defaults to "<project_name>.worktrees"
       'clone_volumes' => [],            # volume basenames to clone from main; empty → image's baked-in dirs
       'reserved_slugs' => [],
@@ -37,7 +33,7 @@ module Dock
     class << self
       def load(starting_path: Dir.pwd)
         # Inside a linked git worktree, prefer the main checkout's .dock.yml so
-        # config (and the dump) have a single source of truth.
+        # config has a single source of truth.
         linked = Workspace.linked_worktree(starting_path)
         search = linked && File.file?(File.join(linked[:main_root], '.dock.yml')) ? linked[:main_root] : starting_path
         root = find_project_root(search)
@@ -74,10 +70,6 @@ module Dock
     def base_host = fetch('base_host')
     # Optional: nil if not set. When set, EnvFiles writes PROJECT_NAME=<slug>-<base_project>.
     def base_project = @raw['base_project']
-    def db_name = fetch('db_name')
-    def db_user = fetch('db_user')
-    def db_service = fetch('db_service')
-    def dump_path = File.join(@project_root, safe_relative('dump_path'))
     def worktree_dir = fetch('worktree_dir')
     def worktree_dir_path = File.expand_path("../#{safe_relative('worktree_dir')}", @project_root)
     # Volume basenames to clone from main into a workspace. Compose auto-prefixes
@@ -120,7 +112,7 @@ module Dock
 
     # Defense in depth: configured relative paths must stay relative and may
     # not contain `..` segments. Prevents a hand-edited .dock.yml from
-    # redirecting workspace creation or dump writes outside the project tree.
+    # redirecting workspace creation outside the project tree.
     def safe_relative(key)
       value = fetch(key).to_s
       raise ConfigInvalidError, "#{key} must be a relative path, got #{value.inspect}" if value.start_with?('/')

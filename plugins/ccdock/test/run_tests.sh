@@ -2,7 +2,7 @@
 # Runner for the ccdock plugin test suite.
 #
 # Runs Minitest unit tests (Ruby) for every module under scripts/lib/dock/,
-# then runs Bats integration tests for the bash scripts (notify, dump) — if
+# then runs Bats integration tests for the bash scripts (notify) — if
 # Bats is installed. If Bats is missing, prints a hint and exits 0 on the
 # Ruby tests alone (Bats is treated as an optional integration layer).
 #

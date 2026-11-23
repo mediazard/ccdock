@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 2026-11-20
+
+**BREAKING: SQL dump support removed.** ccdock no longer touches the database.
+The app's own entrypoint (e.g. Rails `db:prepare`) creates and seeds the DB in
+each dock.
+
+- Removed `/dock-dump` and `scripts/dump`. `/dock` no longer needs a dump file.
+- Removed config keys `dump_path`, `db_name`, `db_user`, `db_service`. Old keys
+  left in `.dock.yml` are ignored. `db_name` is no longer required.
+- Removed the postgres health wait. Service bring-up order is otherwise unchanged.
+- `clone_volumes` and the first-run gate on volume cloning are unchanged.
+
 ## 0.4.0 — 2026-11-20
 
 **In-place docks.** Run `/dock` from inside an existing linked git worktree
